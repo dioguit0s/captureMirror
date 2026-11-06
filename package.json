@@ -1,0 +1,20 @@
+{
+  "name": "capture-mirror",
+  "productName": "Capture Mirror",
+  "version": "0.2.0",
+  "description": "Espelha vídeo e áudio de uma placa de captura USB numa janela, para compartilhar no Discord.",
+  "main": "src/main/main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win"
+  },
+  "devDependencies": {
+    "electron": "45.2.2",
+    "electron-builder": "26.18.0"
+  },
+  "author": "Capture Mirror",
+  "dependencies": {
+    "mediabunny": "1.62.1"
+  }
+}

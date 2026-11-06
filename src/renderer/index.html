@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'" />
+    <title>Capture Mirror</title>
+    <link rel="stylesheet" href="style.css" />
+    <script type="module" src="app.js"></script>
+  </head>
+  <body>
+    <video id="video" autoplay muted></video>
+
+    <div id="setup" class="cm-center" hidden>
+      <form id="picker" class="cm-setup">
+        <div class="cm-brand">
+          <svg viewBox="0 0 1024 1024" aria-hidden="true">
+            <rect x="56" y="152" width="912" height="720" rx="128" fill="#2F6FED"></rect>
+            <polygon points="456,272 456,752 176,752" fill="#FFFFFF"></polygon>
+            <polygon points="568,272 568,752 848,752" fill="#A9C5F8"></polygon>
+          </svg>
+          Capture Mirror
+        </div>
+        <div class="cm-field">
+          <span class="cm-label">Vídeo</span>
+          <div id="video-device"></div>
+        </div>
+        <div class="cm-field">
+          <span class="cm-label">Áudio</span>
+          <div id="audio-device"></div>
+        </div>
+        <p id="message" class="cm-msg" role="status"></p>
+        <button id="start" class="cm-btn" type="submit" disabled>Iniciar</button>
+      </form>
+    </div>
+
+    <div id="status" class="cm-center" hidden>
+      <div class="cm-status" role="status">
+        <h1 id="status-title"></h1>
+        <p id="status-text"></p>
+        <button id="retry" class="cm-btn" type="button" hidden>Tentar novamente</button>
+      </div>
+    </div>
+
+    <aside id="info" class="cm-info" aria-hidden="true">
+      <div id="info-resolution"></div>
+      <div id="info-fps"></div>
+    </aside>
+
+    <div id="overlay" class="cm-overlay" inert>
+      <div id="overlay-message" class="cm-note" role="status" hidden></div>
+      <div class="cm-bar">
+        <div id="overlay-video"></div>
+        <div id="overlay-audio"></div>
+        <div class="cm-sep"></div>
+        <button id="mute" class="cm-mute" type="button" aria-pressed="false">
+          <svg class="cm-i sound-on" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5H4z"></path>
+            <path d="M15.5 9a4.5 4.5 0 0 1 0 6"></path>
+            <path d="M18 6.5a8 8 0 0 1 0 11"></path>
+          </svg>
+          <svg class="cm-i sound-off" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5H4z"></path>
+            <path d="M16 9.5l5 5M21 9.5l-5 5"></path>
+          </svg>
+        </button>
+        <div class="cm-volume">
+          <div class="cm-track"><div id="volume-fill" class="cm-fill"></div></div>
+          <input id="volume" class="cm-range" type="range" min="0" max="100" step="1" aria-label="Volume" />
+        </div>
+        <div id="volume-pct" class="cm-pct"></div>
+        <div class="cm-sep"></div>
+        <div id="overlay-mic"></div>
+        <span id="rec" class="cm-rec" hidden></span>
+        <button id="clip-30" class="cm-chip" type="button">30 s</button>
+        <button id="clip-60" class="cm-chip" type="button">1 min</button>
+        <button
+          id="collection"
+          class="cm-mute"
+          type="button"
+          aria-label="Coleção de clipes"
+          title="Coleção de clipes"
+        >
+          <svg class="cm-i" viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="3" y="3" width="7.5" height="7.5" rx="1.5"></rect>
+            <rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"></rect>
+            <rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"></rect>
+            <rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5"></rect>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </body>
+</html>

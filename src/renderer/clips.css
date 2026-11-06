@@ -1,0 +1,211 @@
+/* Coleção de clipes. Mesmos tokens da janela principal (design/tokens.css). */
+:root {
+  --cm-color-bg: #000000;
+  --cm-color-surface: #141414;
+  --cm-color-menu: #1c1c1c;
+  --cm-color-hover: rgba(255, 255, 255, 0.12);
+  --cm-color-border: rgba(255, 255, 255, 0.18);
+  --cm-color-text: #ffffff;
+  --cm-color-text-secondary: #c4c4c4;
+  --cm-color-accent: #2f6fed;
+  --cm-color-focus: #8fb3f7;
+  --cm-color-danger: #e5484d;
+  --cm-font: 'Segoe UI', system-ui, sans-serif;
+  --cm-text-sm: 13px;
+  --cm-text-md: 14px;
+  --cm-text-lg: 20px;
+  --cm-space-1: 4px;
+  --cm-space-2: 8px;
+  --cm-space-3: 12px;
+  --cm-space-4: 16px;
+  --cm-space-5: 24px;
+  --cm-radius-sm: 4px;
+  --cm-radius: 6px;
+  --cm-radius-lg: 8px;
+  --cl-card-w: 240px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--cm-color-surface);
+  color: var(--cm-color-text);
+  font-family: var(--cm-font);
+  font-size: var(--cm-text-md);
+}
+
+button:focus-visible {
+  outline: 2px solid var(--cm-color-focus);
+  outline-offset: 1px;
+}
+
+.cl-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--cm-space-3);
+  padding: var(--cm-space-3) var(--cm-space-5);
+  background: var(--cm-color-surface);
+  border-bottom: 1px solid var(--cm-color-border);
+}
+
+.cl-head h1 {
+  margin: 0;
+  font-size: var(--cm-text-lg);
+  font-weight: 600;
+}
+
+.cl-count {
+  flex: 1;
+  color: var(--cm-color-text-secondary);
+  font-size: var(--cm-text-sm);
+}
+
+.cl-btn {
+  height: 36px;
+  padding: 0 var(--cm-space-4);
+  border: 1px solid var(--cm-color-border);
+  border-radius: var(--cm-radius);
+  background: transparent;
+  color: var(--cm-color-text);
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.cl-btn:hover {
+  background: var(--cm-color-hover);
+}
+
+.cl-danger:hover {
+  border-color: var(--cm-color-danger);
+}
+
+main {
+  padding: var(--cm-space-5);
+}
+
+.cl-empty {
+  max-width: 460px;
+  margin: 15vh auto 0;
+  color: var(--cm-color-text-secondary);
+  text-align: center;
+  line-height: 22px;
+}
+
+.cl-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--cl-card-w), 1fr));
+  gap: var(--cm-space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cl-card {
+  min-width: 0;
+}
+
+.cl-thumb {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--cm-color-border);
+  border-radius: var(--cm-radius-lg);
+  background: var(--cm-color-bg);
+  cursor: pointer;
+}
+
+.cl-thumb:hover {
+  border-color: var(--cm-color-text-secondary);
+}
+
+.cl-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.cl-thumb img:not([src]) {
+  visibility: hidden;
+}
+
+.cl-duration {
+  position: absolute;
+  right: var(--cm-space-2);
+  bottom: var(--cm-space-2);
+  padding: 2px var(--cm-space-2);
+  border-radius: var(--cm-radius-sm);
+  background: rgba(0, 0, 0, 0.8);
+  color: var(--cm-color-text);
+  font-size: var(--cm-text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.cl-duration:empty {
+  display: none;
+}
+
+.cl-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--cm-space-2);
+  padding: var(--cm-space-2) 2px 0;
+  color: var(--cm-color-text-secondary);
+  font-size: var(--cm-text-sm);
+}
+
+/* Player */
+.cl-player {
+  width: min(1100px, calc(100vw - 48px));
+  max-width: none;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--cm-color-border);
+  border-radius: var(--cm-radius-lg);
+  background: var(--cm-color-menu);
+  color: var(--cm-color-text);
+}
+
+.cl-player::backdrop {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.cl-player video {
+  display: block;
+  width: 100%;
+  max-height: calc(100vh - 140px);
+  background: var(--cm-color-bg);
+}
+
+.cl-player-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--cm-space-2);
+  padding: var(--cm-space-3);
+}
+
+.cl-player-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--cm-color-text-secondary);
+  font-size: var(--cm-text-sm);
+}

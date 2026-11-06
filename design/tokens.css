@@ -1,0 +1,47 @@
+/* Tokens do Capture Mirror. Mesmos valores do protótipo. */
+:root {
+  /* Cor */
+  --cm-color-bg: #000000;
+  --cm-color-surface: #141414;
+  --cm-color-overlay: rgba(18, 18, 18, 0.88);
+  --cm-color-info: rgba(0, 0, 0, 0.86);
+  --cm-color-menu: #1c1c1c;
+  --cm-color-hover: rgba(255, 255, 255, 0.12);
+  --cm-color-border: rgba(255, 255, 255, 0.18);
+  --cm-color-text: #ffffff;
+  --cm-color-text-secondary: #c4c4c4;
+  --cm-color-text-disabled: #9a9a9a;
+  --cm-color-disabled: #262626;
+  --cm-color-accent: #2f6fed;
+  --cm-color-accent-hover: #2560d6;
+  --cm-color-focus: #8fb3f7;
+  --cm-color-track: rgba(255, 255, 255, 0.28);
+  --cm-color-muted-bg: #ffffff;
+  --cm-color-muted-fg: #000000;
+  /* Tipografia */
+  --cm-font: "Segoe UI", system-ui, sans-serif;
+  --cm-text-sm: 13px;
+  --cm-text-md: 14px;
+  --cm-text-lg: 20px;
+  /* Espaçamento */
+  --cm-space-1: 4px;
+  --cm-space-2: 8px;
+  --cm-space-3: 12px;
+  --cm-space-4: 16px;
+  --cm-space-5: 24px;
+  /* Tamanho */
+  --cm-control-h: 44px;
+  --cm-icon: 20px;
+  --cm-setup-w: 340px;
+  --cm-message-w: 420px;
+  --cm-bar-max-w: 760px;
+  --cm-volume-w: 148px;
+  --cm-volume-w-compact: 112px;
+  --cm-menu-w: 300px;
+  --cm-menu-w-compact: 250px;
+  --cm-radius-sm: 4px;
+  --cm-radius: 6px;
+  --cm-radius-lg: 8px;
+  /* Movimento */
+  --cm-fade: 120ms;
+}

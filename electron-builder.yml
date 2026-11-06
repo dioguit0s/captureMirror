@@ -1,0 +1,19 @@
+appId: com.capturemirror.app
+productName: Capture Mirror
+directories:
+  output: dist
+files:
+  - src/**
+  - package.json
+win:
+  icon: build/icon.png
+  target:
+    - nsis
+    - portable
+nsis:
+  artifactName: Capture-Mirror-Setup-${version}.${ext}
+  # Instalação só para o usuário atual: não pede permissão de administrador.
+  perMachine: false
+  shortcutName: Capture Mirror
+portable:
+  artifactName: Capture-Mirror-Portatil-${version}.${ext}

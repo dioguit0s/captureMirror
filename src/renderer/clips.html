@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; img-src 'self' clip:; media-src clip:"
+    />
+    <title>Capture Mirror — Clipes</title>
+    <link rel="stylesheet" href="clips.css" />
+    <script type="module" src="clips.js"></script>
+  </head>
+  <body>
+    <header class="cl-head">
+      <h1>Clipes</h1>
+      <span id="count" class="cl-count"></span>
+      <button id="open-folder" class="cl-btn" type="button">Abrir pasta</button>
+    </header>
+
+    <main>
+      <p id="empty" class="cl-empty" hidden></p>
+      <ul id="grid" class="cl-grid"></ul>
+    </main>
+
+    <dialog id="player" class="cl-player">
+      <video id="player-video" controls></video>
+      <div class="cl-player-bar">
+        <span id="player-name" class="cl-player-name"></span>
+        <button id="player-show" class="cl-btn" type="button">Mostrar no Explorer</button>
+        <button id="player-trash" class="cl-btn cl-danger" type="button">Mover para a Lixeira</button>
+        <button id="player-close" class="cl-btn" type="button">Fechar</button>
+      </div>
+    </dialog>
+
+    <template id="card">
+      <li class="cl-card">
+        <button class="cl-thumb" type="button" draggable="true">
+          <img alt="" draggable="false" />
+          <span class="cl-duration"></span>
+        </button>
+        <div class="cl-meta">
+          <span class="cl-date"></span>
+          <span class="cl-size"></span>
+        </div>
+      </li>
+    </template>
+  </body>
+</html>
