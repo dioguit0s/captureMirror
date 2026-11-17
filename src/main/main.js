@@ -16,7 +16,7 @@ const clips = require('./clips');
 
 const APP_TITLE = 'Capture Mirror';
 const COLLECTION_TITLE = 'Capture Mirror — Clipes';
-const SAVABLE_KEYS = ['video', 'audio', 'volume', 'clipMic'];
+const SAVABLE_KEYS = ['video', 'audio', 'volume', 'clipMic', 'resolution'];
 const MIN_VISIBLE_PX = 100;
 const MAX_SNAP_DIP = 20;
 // Globais: funcionam com qualquer janela em foco, como o Discord ou um jogo.

@@ -24,7 +24,13 @@ Os arquivos não têm assinatura digital, então o Windows pode mostrar um aviso
 
 Nas próximas vezes, o app abre direto na imagem, com os mesmos dispositivos, volume, tamanho e posição.
 
-Mova o mouse para ver os controles de dispositivo, mute e volume. Eles somem depois de 2 segundos com o mouse parado, junto com o cursor.
+Mova o mouse para ver os controles de dispositivo, resolução, mute e volume. Eles somem depois de 2 segundos com o mouse parado, junto com o cursor.
+
+### Resolução
+
+O seletor com ícone de monitor, ao lado da placa, escolhe a resolução da imagem: 1080p, 720p ou 480p (e 1440p ou 4K, se a placa suportar). A escolha fica salva. O padrão é 720p porque algumas placas baratas, como a MS2109, só entregam 30 FPS em 1080p. Aperte F1 para ver a resolução e o FPS que chegam de verdade.
+
+Trocar a resolução reabre a placa por um instante e recomeça a memória dos clipes.
 
 ### Atalhos
 

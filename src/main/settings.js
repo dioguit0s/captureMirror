@@ -2,7 +2,7 @@ const { app } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const DEFAULTS = { video: null, audio: null, volume: 1, bounds: null, clipMic: null };
+const DEFAULTS = { video: null, audio: null, volume: 1, bounds: null, clipMic: null, resolution: '720p' };
 
 let current = null;
 

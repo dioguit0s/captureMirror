@@ -215,6 +215,15 @@ input:focus-visible {
   flex: 1 1 0;
 }
 
+/* O nome da resolução é curto: não disputa espaço com os nomes de dispositivo. */
+#overlay-resolution {
+  flex: none;
+}
+
+#overlay-resolution .cm-menu {
+  width: 168px;
+}
+
 .cm-select-btn {
   width: 100%;
   height: var(--cm-control-h);

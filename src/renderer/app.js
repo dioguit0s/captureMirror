@@ -1,4 +1,13 @@
-import { findDevice, listDevices, logTrackInfo, openAudio, openVideo } from './capture.js';
+import {
+  DEFAULT_RESOLUTION,
+  findDevice,
+  findResolution,
+  listDevices,
+  logTrackInfo,
+  openAudio,
+  openVideo,
+  supportedResolutions,
+} from './capture.js';
 import { createAudioOutput } from './audio.js';
 import { createInfoPanel, createOverlay } from './overlay.js';
 import { closeOpenMenu, createSelect } from './select.js';
@@ -13,6 +22,8 @@ const VIDEO_ICON =
   '<svg class="cm-i" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="6" width="14" height="12" rx="2"></rect><path d="M16 10.5l6-3.5v10l-6-3.5"></path></svg>';
 const AUDIO_ICON =
   '<svg class="cm-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h3l2-5 3 11 3-14 3 11 1.5-3H22"></path></svg>';
+const RESOLUTION_ICON =
+  '<svg class="cm-i" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="14" rx="2"></rect><path d="M8 21h8M12 18v3"></path></svg>';
 const MIC_ICON =
   '<svg class="cm-i" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"></path></svg>';
 const THUMB_WIDTH = 320;
@@ -66,6 +77,12 @@ const overlayVideo = createSelect($('#overlay-video'), {
   icon: VIDEO_ICON,
   onChange: (value) => chooseFromOverlay('video', value),
 });
+const overlayResolution = createSelect($('#overlay-resolution'), {
+  label: 'Resolução da imagem',
+  direction: 'up',
+  icon: RESOLUTION_ICON,
+  onChange: (value) => chooseResolution(value),
+});
 const overlayAudio = createSelect($('#overlay-audio'), {
   label: 'Seletor de áudio',
   direction: 'up',
@@ -89,6 +106,11 @@ let devices = { video: [], audio: [] };
 let muted = false;
 // Microfone que entra só nos clipes. null = nenhum.
 let desiredMic = null;
+let desiredResolution = DEFAULT_RESOLUTION;
+// Modos que a placa aberta suporta, lidos das capacidades da faixa de vídeo.
+let videoCapabilities = null;
+// Enquanto a placa reabre noutro modo, a tela de "Sem sinal" não aparece.
+let switchingResolution = false;
 const clipErrors = { replay: null, loopback: null, mic: null, save: null };
 let clipping = false;
 let shortcuts = { shortcuts: [], failed: [] };
@@ -125,6 +147,11 @@ function renderSelects() {
   startButton.disabled = !pickerVideo.value || !pickerAudio.value;
 
   overlayVideo.setOptions(videoOptions, desired.video?.id ?? '', disconnectedLabel(devices.video, desired.video));
+  overlayResolution.setOptions(
+    supportedResolutions(videoCapabilities).map(({ id, label }) => ({ value: id, label })),
+    desiredResolution,
+    findResolution(desiredResolution).label,
+  );
   overlayAudio.setOptions(
     audioChoices,
     desired.audio?.id ?? NO_AUDIO,
@@ -194,7 +221,7 @@ function render() {
   setup.hidden = !inSetup;
   overlay.setEnabled(!inSetup);
 
-  statusScreen.hidden = inSetup || Boolean(live.video);
+  statusScreen.hidden = inSetup || Boolean(live.video) || switchingResolution;
   if (!statusScreen.hidden) {
     const { title, text, isError } = statusContent();
     statusTitle.textContent = title;
@@ -316,13 +343,14 @@ function clearErrors() {
   }
 }
 
-async function open(kind, opener, attach) {
+// variant distingue aberturas do mesmo dispositivo, como a resolução do vídeo.
+async function open(kind, opener, attach, variant = '') {
   const wanted = desired[kind];
   if (!wanted) {
     close(kind);
     return;
   }
-  if (live[kind]?.id === wanted.id) return;
+  if (live[kind]?.id === wanted.id && live[kind].variant === variant) return;
   close(kind);
 
   const device = findDevice(devices[kind], wanted);
@@ -336,7 +364,7 @@ async function open(kind, opener, attach) {
   try {
     const stream = await opener(device.deviceId);
     stream.getTracks().forEach(logTrackInfo);
-    live[kind] = { id: device.deviceId, stream };
+    live[kind] = { id: device.deviceId, variant, stream };
     failedAttempts[kind] = 0;
     await attach(stream);
     // A placa saiu do USB: este evento dispara, e o stream não volta mais.
@@ -373,13 +401,20 @@ async function sync() {
     do {
       syncAgain = false;
       devices = await listDevices();
-      await open('video', openVideo, (stream) => {
-        video.srcObject = stream;
-        startReplay(stream).catch((error) => {
-          clipErrors.replay = error;
-          render();
-        });
-      });
+      await open(
+        'video',
+        (deviceId) => openVideo(deviceId, desiredResolution),
+        (stream) => {
+          video.srcObject = stream;
+          videoCapabilities = stream.getVideoTracks()[0].getCapabilities?.() ?? null;
+          startReplay(stream).catch((error) => {
+            clipErrors.replay = error;
+            render();
+          });
+        },
+        desiredResolution,
+      );
+      switchingResolution = false;
       await open('audio', openAudio, (stream) => output.setStream(stream));
       syncMic();
       renderSelects();
@@ -400,6 +435,16 @@ function choose(kind, value) {
 function chooseFromOverlay(kind, value) {
   clearErrors();
   choose(kind, value);
+  sync();
+}
+
+// Trocar o modo reabre a placa. O buffer de clipes recomeça junto, porque
+// pacotes de resoluções diferentes não cabem no mesmo arquivo.
+function chooseResolution(value) {
+  desiredResolution = findResolution(value).id;
+  api.saveSettings({ resolution: desiredResolution });
+  switchingResolution = Boolean(live.video);
+  clearErrors();
   sync();
 }
 
@@ -467,6 +512,7 @@ const saved = await api.loadSettings();
 desired.video = saved.video;
 desired.audio = saved.audio;
 desiredMic = saved.clipMic;
+desiredResolution = findResolution(saved.resolution).id;
 shortcuts = await api.clipShortcuts();
 volumeSlider.value = Math.round(saved.volume * 100);
 output.setVolume(saved.volume);

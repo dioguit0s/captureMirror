@@ -19,22 +19,44 @@ export function findDevice(devices, saved) {
   );
 }
 
+// Modos oferecidos no overlay. O padrão é 720p: na placa testada (MS2109), 1080p
+// declara 60 FPS, mas só 30 chegam à tela. Placas melhores aguentam 1080p60.
+export const RESOLUTIONS = [
+  { id: '2160p', label: '2160p (4K)', width: 3840, height: 2160 },
+  { id: '1440p', label: '1440p', width: 2560, height: 1440 },
+  { id: '1080p', label: '1080p', width: 1920, height: 1080 },
+  { id: '720p', label: '720p', width: 1280, height: 720 },
+  { id: '480p', label: '480p', width: 854, height: 480 },
+];
+export const DEFAULT_RESOLUTION = '720p';
+
+export const findResolution = (id) =>
+  RESOLUTIONS.find((mode) => mode.id === id) ?? RESOLUTIONS.find((mode) => mode.id === DEFAULT_RESOLUTION);
+
+// Só os modos que a placa diz suportar. Sem capacidades, mostra todos até 1080p.
+export function supportedResolutions(capabilities) {
+  const maxWidth = capabilities?.width?.max ?? 1920;
+  const maxHeight = capabilities?.height?.max ?? 1080;
+  const modes = RESOLUTIONS.filter(({ width, height }) => width <= maxWidth && height <= maxHeight);
+  return modes.length ? modes : RESOLUTIONS.slice(-1);
+}
+
 // deviceId é exact: com ideal, o Chromium poderia trocar a placa pela webcam sem avisar.
-export async function openVideo(deviceId) {
+export async function openVideo(deviceId, resolutionId) {
   const device = { deviceId: { exact: deviceId } };
+  const { width, height, label } = findResolution(resolutionId);
   try {
     return await navigator.mediaDevices.getUserMedia({
       video: {
         ...device,
-        // 720p: na placa testada (MS2109), 1080p declara 60 FPS, mas só 30 chegam à tela.
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
+        width: { ideal: width },
+        height: { ideal: height },
         frameRate: { ideal: 60 },
       },
     });
   } catch (error) {
     // Algumas placas falham ao iniciar nesse modo, mesmo com ideal.
-    console.warn(`720p60 falhou (${error.name}). Tentando o modo padrão do dispositivo.`);
+    console.warn(`${label}60 falhou (${error.name}). Tentando o modo padrão do dispositivo.`);
     return navigator.mediaDevices.getUserMedia({ video: device });
   }
 }
