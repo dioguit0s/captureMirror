@@ -17,6 +17,11 @@ vídeo (clone) ─> MediaStreamTrackProcessor ─> VideoEncoder H.264 ─┐
 loopback do PC ─┬─> AudioContext próprio (sem saída) ─> AudioEncoder ┴─> buffer na RAM (~62 s)
 microfone opc. ─┘                                                         │ atalho ou botão
                                            mediabunny (MP4) <─────────────┘ ─> main grava em Vídeos\Capture Mirror
+
+Modo navegador (fase 5), para o Google Meet:
+vídeo (mesma faixa) ───────────┐
+Gain ─> MediaStreamDestination ┴─> RTCPeerConnection ══ WebRTC local ══> guia do navegador (src/player) ─> Meet "Uma guia"
+            oferta e resposta: renderer ⇄ IPC ⇄ main (HTTP + SSE em 127.0.0.1:47830) ⇄ página
 ```
 
 - **Main process:** janela, permissões de mídia, flags do Chromium, leitura e gravação do JSON de configuração.
@@ -40,18 +45,21 @@ captureMirror/
    │  ├─ main.js             # janela, permissões, flags
    │  ├─ settings.js         # JSON em userData (fase 2)
    │  ├─ clips.js            # pasta, lista, gravação e protocolo clip:// dos clipes (fase 4)
+   │  ├─ browserShare.js     # servidor local do modo navegador: página, SSE e resposta WebRTC (fase 5)
    │  └─ preload.js          # fase 2: a fase 1 não precisa de ponte com o main
-   └─ renderer/
-      ├─ index.html
-      ├─ style.css
-      ├─ app.js              # orquestra tudo
-      ├─ capture.js          # getUserMedia, fallback, capacidades
-      ├─ audio.js            # AudioContext e GainNode
-      ├─ overlay.js          # overlay, cursor e painel de informações
-      ├─ select.js           # seletor de dispositivo do protótipo
-      ├─ replay.js           # buffer de replay: encoders, pacotes na RAM, MP4 (fase 4)
-      ├─ clipaudio.js        # loopback do PC + microfone opcional para os clipes (fase 4)
-      └─ clips.html/.js/.css # janela da coleção (fase 4)
+   ├─ renderer/
+   │  ├─ index.html
+   │  ├─ style.css
+   │  ├─ app.js              # orquestra tudo
+   │  ├─ capture.js          # getUserMedia, fallback, capacidades
+   │  ├─ audio.js            # AudioContext e GainNode
+   │  ├─ overlay.js          # overlay, cursor e painel de informações
+   │  ├─ select.js           # seletor de dispositivo do protótipo
+   │  ├─ replay.js           # buffer de replay: encoders, pacotes na RAM, MP4 (fase 4)
+   │  ├─ clipaudio.js        # loopback do PC + microfone opcional para os clipes (fase 4)
+   │  ├─ share.js            # emissor WebRTC do modo navegador (fase 5)
+   │  └─ clips.html/.js/.css # janela da coleção (fase 4)
+   └─ player/                # página aberta no navegador pelo modo navegador (fase 5)
 ```
 
 ## Decisões técnicas
@@ -204,6 +212,17 @@ Só dá para confirmar estes pontos com a placa e o Discord reais, e esse teste 
 - Buffer de replay de 1 min com vídeo da placa, som do PC e microfone opcional. Clipes de 30 s e 1 min por atalho global ou botão.
 - Coleção numa janela separada, com player, arrastar, Explorer e Lixeira.
 - Ver a seção "Fase 4 — Clipes e coleção" para as decisões e as medições.
+
+### Fase 5 — Modo navegador (Google Meet)
+- O Meet (Chrome e Edge) só compartilha som de uma guia ou da tela inteira, nunca de uma janela. O app manda imagem e som por WebRTC para uma página local, e a pessoa compartilha essa guia.
+- **Servidor:** `http` do Node em `127.0.0.1`, porta fixa 47830 para a guia se reconectar quando o app reinicia, com outra porta se ela estiver ocupada. Recusa `Host` diferente de `127.0.0.1`/`localhost` (DNS rebinding) e `POST` de outra origem. A sinalização usa SSE e `POST`, sem dependência nova.
+- **Uma guia por vez.** Uma guia nova desconecta a anterior, que mostra "Usar esta guia".
+- **Sem trickle ICE e sem STUN:** a oferta e a resposta vão com os candidatos completos, porque tudo é local.
+- **Vídeo:** a própria faixa da placa, com `contentHint = "motion"` e H.264 preferido. Trocar placa ou resolução só faz `replaceTrack`. Com o dispositivo simulado, o envio usou o codificador por hardware (Intel Quick Sync), sem limitação.
+- **Taxa:** a resposta da guia recebe `x-google-start-bitrate=12000` e `x-google-max-bitrate=30000` para a imagem não começar borrada, e Opus estéreo a 256 kbps em vez da taxa de voz.
+- **Áudio:** `Gain → MediaStreamDestination`, então volume e mute valem para a guia. Enquanto a guia está conectada, um segundo ganho cala os alto-falantes do app, porque a guia toca o mesmo som. Na guia, `jitterBufferTarget = 0`.
+- **Página:** pede um clique quando o navegador bloqueia som sem gesto, mostra "Sem sinal" pelo estado que o app envia e mostra por 8 s como compartilhar no Meet.
+- **Testado** com o dispositivo simulado no navegador embutido: imagem 1280x720, som com sinal, troca de guia e reconexão depois de reiniciar o app. **Falta testar** com a placa e numa call real do Meet. Numa das execuções, uma guia reconectada mostrou "Sem sinal" com a imagem chegando. Isso não se repetiu em 3 tentativas, e a causa não foi encontrada.
 
 ### Possível fase futura (não implementar agora)
 - Câmera e microfone virtuais, para usar no Meet e em apps de navegador.

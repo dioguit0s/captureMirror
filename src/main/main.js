@@ -9,10 +9,12 @@ const {
   Notification,
   screen,
   session,
+  shell,
 } = require('electron');
 const path = require('node:path');
 const settings = require('./settings');
 const clips = require('./clips');
+const browserShare = require('./browserShare');
 
 const APP_TITLE = 'Capture Mirror';
 const COLLECTION_TITLE = 'Capture Mirror — Clipes';
@@ -223,6 +225,15 @@ function registerIpc() {
   ipcMain.on('clips:show', (_event, name) => clips.show(name));
   ipcMain.on('clips:open-folder', () => clips.openFolder());
   ipcMain.on('collection:open', openCollection);
+
+  // Modo navegador: o renderer faz a oferta WebRTC, e o main só leva as mensagens.
+  ipcMain.handle('share:current', () => ({ url: browserShare.url(), viewer: browserShare.currentViewer() }));
+  ipcMain.on('share:offer', (_event, id, description) => browserShare.sendOffer(id, description));
+  ipcMain.on('share:status', (_event, status) => browserShare.sendStatus(status));
+  ipcMain.on('share:open', () => {
+    const target = browserShare.url();
+    if (target) shell.openExternal(target);
+  });
   // Arrastar o card leva o arquivo de verdade: dá para soltar no Discord ou no Explorer.
   ipcMain.on('clips:drag', (event, name) => {
     const file = clips.clipPath(name);
@@ -240,7 +251,16 @@ app.whenReady().then(() => {
   registerIpc();
   createWindow();
   registerShortcuts();
+  browserShare
+    .start({
+      onViewer: (id) => mainWindow?.webContents.send('share:viewer', id),
+      onSignal: ({ id, description }) => mainWindow?.webContents.send('share:answer', id, description),
+    })
+    .catch((error) => console.error(`modo navegador: ${error.message}`));
 });
 
-app.on('will-quit', () => globalShortcut.unregisterAll());
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll();
+  browserShare.stop();
+});
 app.on('window-all-closed', () => app.quit());

@@ -1,0 +1,161 @@
+/* Mesmos tokens do app (src/renderer/style.css), só os que esta página usa. */
+:root {
+  --cm-color-bg: #000000;
+  --cm-color-surface: #141414;
+  --cm-color-overlay: rgba(18, 18, 18, 0.88);
+  --cm-color-border: rgba(255, 255, 255, 0.18);
+  --cm-color-text: #ffffff;
+  --cm-color-text-secondary: #c4c4c4;
+  --cm-color-accent: #2f6fed;
+  --cm-color-accent-hover: #2560d6;
+  --cm-color-focus: #8fb3f7;
+  --cm-font: 'Segoe UI', system-ui, sans-serif;
+  --cm-text-sm: 13px;
+  --cm-text-md: 14px;
+  --cm-text-lg: 20px;
+  --cm-space-1: 4px;
+  --cm-space-2: 8px;
+  --cm-space-3: 12px;
+  --cm-space-4: 16px;
+  --cm-space-5: 24px;
+  --cm-control-h: 44px;
+  --cm-message-w: 420px;
+  --cm-radius: 6px;
+  --cm-radius-lg: 8px;
+  --cm-fade: 160ms;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: var(--cm-color-bg);
+  color: var(--cm-color-text);
+  font-family: var(--cm-font);
+  font-size: var(--cm-text-md);
+}
+
+/* Cursor parado: nada de seta sobre a imagem que está indo para a call. */
+body.idle,
+body.idle * {
+  cursor: none !important;
+}
+
+#video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: var(--cm-color-bg);
+}
+
+.cm-center {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--cm-space-4);
+  text-align: center;
+  background: var(--cm-color-bg);
+  transition: opacity var(--cm-fade) ease-out;
+}
+
+.cm-card {
+  width: 100%;
+  max-width: var(--cm-message-w);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--cm-space-3);
+}
+
+.cm-card h1 {
+  margin: 0;
+  font-size: var(--cm-text-lg);
+  line-height: 28px;
+  font-weight: 600;
+}
+
+.cm-card p {
+  margin: 0;
+  font-size: var(--cm-text-md);
+  line-height: 20px;
+  color: var(--cm-color-text-secondary);
+  text-wrap: pretty;
+}
+
+.cm-card p:empty {
+  display: none;
+}
+
+.cm-btn {
+  height: var(--cm-control-h);
+  margin-top: var(--cm-space-1);
+  padding: 0 var(--cm-space-5);
+  border: 0;
+  border-radius: var(--cm-radius);
+  background: var(--cm-color-accent);
+  color: #ffffff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color var(--cm-fade) ease-out;
+}
+
+.cm-btn:hover {
+  background: var(--cm-color-accent-hover);
+}
+
+.cm-btn:focus-visible {
+  outline: 2px solid var(--cm-color-focus);
+  outline-offset: 2px;
+}
+
+/* Instrução que aparece por alguns segundos quando a imagem entra. */
+.cm-hint {
+  position: fixed;
+  top: var(--cm-space-4);
+  left: 50%;
+  max-width: calc(100% - 2 * var(--cm-space-4));
+  padding: var(--cm-space-2) var(--cm-space-3);
+  background: var(--cm-color-overlay);
+  border: 1px solid var(--cm-color-border);
+  border-radius: var(--cm-radius-lg);
+  font-size: var(--cm-text-sm);
+  line-height: 18px;
+  text-align: center;
+  transform: translateX(-50%);
+  transition:
+    opacity var(--cm-fade) ease-out,
+    transform var(--cm-fade) ease-out;
+}
+
+.cm-hint strong {
+  font-weight: 600;
+}
+
+/* Entrada e saída suaves: o elemento fica visível, e a classe controla a opacidade. */
+.cm-center.is-hidden,
+.cm-hint.is-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.cm-hint.is-hidden {
+  transform: translate(-50%, -8px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cm-center,
+  .cm-hint,
+  .cm-btn {
+    transition: none;
+  }
+}

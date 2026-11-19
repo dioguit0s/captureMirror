@@ -17,4 +17,12 @@ contextBridge.exposeInMainWorld('captureMirror', {
   startDrag: (name) => ipcRenderer.send('clips:drag', name),
   onClipRequest: (listener) => ipcRenderer.on('clip:request', (_event, seconds) => listener(seconds)),
   onClipsChanged: (listener) => ipcRenderer.on('clips:changed', () => listener()),
+
+  // Modo navegador
+  shareCurrent: () => ipcRenderer.invoke('share:current'),
+  openShare: () => ipcRenderer.send('share:open'),
+  sendShareOffer: (id, description) => ipcRenderer.send('share:offer', id, description),
+  sendShareStatus: (status) => ipcRenderer.send('share:status', status),
+  onShareViewer: (listener) => ipcRenderer.on('share:viewer', (_event, id) => listener(id)),
+  onShareAnswer: (listener) => ipcRenderer.on('share:answer', (_event, id, description) => listener(id, description)),
 });

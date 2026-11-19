@@ -13,6 +13,7 @@ import { createInfoPanel, createOverlay } from './overlay.js';
 import { closeOpenMenu, createSelect } from './select.js';
 import { createClipAudio } from './clipaudio.js';
 import { createReplayBuffer } from './replay.js';
+import { createBrowserShare } from './share.js';
 
 const NO_AUDIO = 'none';
 const RETRY_DELAY_MS = 1500;
@@ -48,12 +49,22 @@ const volumePct = $('#volume-pct');
 const recDot = $('#rec');
 const clipButtons = { 30: $('#clip-30'), 60: $('#clip-60') };
 const collectionButton = $('#collection');
+const shareButton = $('#share');
 
 const api = window.captureMirror;
 const output = createAudioOutput();
 const overlay = createOverlay($('#overlay'));
 const infoPanel = createInfoPanel($('#info'), video);
 const clipAudio = createClipAudio();
+const share = createBrowserShare({
+  api,
+  audioTrack: () => output.shareTrack(),
+  onChange: (connected) => {
+    // A guia toca o mesmo som. Se o app também tocasse, ele sairia dobrado.
+    output.setLocalOutput(!connected);
+    render();
+  },
+});
 const replay = createReplayBuffer({
   onError: (error) => {
     clipErrors.replay = error;
@@ -188,7 +199,10 @@ function statusContent() {
 }
 
 function audioMessage() {
-  if (!desired.audio || live.audio) return muted ? 'Silenciado. A transmissão e os clipes também ficam sem som.' : '';
+  if (!desired.audio || live.audio) {
+    if (muted) return 'Silenciado. A transmissão e os clipes também ficam sem som.';
+    return share.connected && desired.audio ? 'O som está saindo pela guia do navegador.' : '';
+  }
   return errors.audio ? `Não foi possível abrir o áudio (${errors.audio.name}).` : 'Dispositivo de áudio desconectado.';
 }
 
@@ -243,6 +257,13 @@ function render() {
   muteButton.setAttribute('aria-label', muteLabel);
   muteButton.title = muteLabel;
   document.body.classList.toggle('is-muted', muted);
+
+  const shareLabel = share.connected
+    ? 'Guia do navegador conectada. Clique para abrir outra.'
+    : 'Abrir numa guia do navegador, para compartilhar com som no Google Meet';
+  shareButton.setAttribute('aria-pressed', String(share.connected));
+  shareButton.setAttribute('aria-label', shareLabel);
+  shareButton.title = shareLabel;
   renderClipControls();
 }
 
@@ -256,6 +277,7 @@ function close(kind) {
   live[kind] = null;
   if (kind === 'video') {
     video.srcObject = null;
+    share.setVideoTrack(null);
     replay.stop().then(render);
   } else {
     output.setStream(null);
@@ -406,6 +428,7 @@ async function sync() {
         (deviceId) => openVideo(deviceId, desiredResolution),
         (stream) => {
           video.srcObject = stream;
+          share.setVideoTrack(stream.getVideoTracks()[0]);
           videoCapabilities = stream.getVideoTracks()[0].getCapabilities?.() ?? null;
           startReplay(stream).catch((error) => {
             clipErrors.replay = error;
@@ -473,6 +496,7 @@ muteButton.addEventListener('click', toggleMute);
 clipButtons[30].addEventListener('click', () => saveClip(30));
 clipButtons[60].addEventListener('click', () => saveClip(60));
 collectionButton.addEventListener('click', () => api.openCollection());
+shareButton.addEventListener('click', () => api.openShare());
 api.onClipRequest((seconds) => saveClip(seconds));
 volumeSlider.addEventListener('input', () => {
   output.setVolume(volumeSlider.value / 100);
@@ -518,3 +542,4 @@ volumeSlider.value = Math.round(saved.volume * 100);
 output.setVolume(saved.volume);
 renderVolume();
 sync();
+share.start();

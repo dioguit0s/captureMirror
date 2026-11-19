@@ -1,6 +1,6 @@
 # Capture Mirror
 
-Espelha a imagem e o som de uma placa de captura USB numa janela. Você compartilha essa janela no Discord (Go Live) como se fosse um jogo aberto, e o áudio vai junto.
+Espelha a imagem e o som de uma placa de captura USB numa janela. Você compartilha essa janela no Discord (Go Live) como se fosse um jogo aberto, e o áudio vai junto. Também dá para compartilhar com som no Google Meet, por uma guia do navegador.
 
 Funciona no Windows 10 ou mais recente, com placas de captura USB comuns (UVC).
 
@@ -80,6 +80,21 @@ O botão com quatro quadrados no overlay abre a coleção numa **janela separada
 
 Os nomes dos menus podem mudar conforme a versão do Discord.
 
+## Como compartilhar no Google Meet (com som)
+
+O Meet roda no navegador, e o navegador não compartilha o som de uma janela, só de uma **guia** ou da tela inteira. Por isso o app manda a imagem e o som para uma guia, e você compartilha essa guia.
+
+1. Com a imagem no ar, mova o mouse e clique no botão da direita do overlay (**Abrir numa guia do navegador**). A página abre no navegador padrão. Use o Chrome ou o Edge, porque o Firefox não compartilha som de guias.
+2. Se a página pedir, clique em **Começar**. O navegador só toca som depois de um clique.
+3. No Meet, clique em **Apresentar → Uma guia**, escolha a guia **Capture Mirror** e deixe ligado **Compartilhar também o áudio da guia**.
+
+Enquanto a guia está conectada, o botão fica azul, e **o som passa a sair pela guia**, não pelo app, para não tocar dobrado. Volume e mute do app continuam valendo. Feche a guia para o som voltar ao app.
+
+- A guia se reconecta sozinha se o app for fechado e aberto de novo.
+- Uma guia por vez: abrir outra desconecta a anterior.
+- A página só aceita conexões do próprio PC (`http://127.0.0.1:47830`). Se essa porta estiver ocupada, o app usa outra, e a guia precisa ser aberta de novo pelo botão.
+- Na guia, o som chega alguns milissegundos depois da imagem do app. Para quem está na call, imagem e som chegam juntos.
+
 ## Bom saber
 
 - **Volume e mute também afetam a transmissão.** O Discord captura o som que sai do app. Com o mute ligado, quem assiste também fica sem som.
@@ -107,7 +122,7 @@ Em `%APPDATA%\Capture Mirror\settings.json`. Para voltar à tela de configuraç�
 
 ## Estado dos testes
 
-O app foi testado com um dispositivo simulado do Chromium, uma webcam e uma placa de captura (ID USB 534D:2109), incluindo a escuta do som e a desconexão do USB. **Ainda não foi testado transmitindo no Go Live.** Os clipes foram testados com a placa e com som do PC, mas ainda não numa call real do Discord. Os resultados e os pontos em aberto estão em [SPEC.md](SPEC.md).
+O app foi testado com um dispositivo simulado do Chromium, uma webcam e uma placa de captura (ID USB 534D:2109), incluindo a escuta do som e a desconexão do USB. **Ainda não foi testado transmitindo no Go Live.** O modo navegador foi testado só com o dispositivo simulado, sem a placa e sem uma call real do Meet. Os clipes foram testados com a placa e com som do PC, mas ainda não numa call real do Discord. Os resultados e os pontos em aberto estão em [SPEC.md](SPEC.md).
 
 ## Desenvolvimento
 
