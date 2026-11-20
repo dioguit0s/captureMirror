@@ -19,17 +19,13 @@ window.captureMirror = {
   toggleFullscreen: () => fire('window_toggle_fullscreen'),
   exitFullscreen: () => fire('window_exit_fullscreen'),
 
-  // Clipes. O MP4 e a miniatura vão juntos no corpo binário, sem virar JSON.
+  // Clipes. O MP4 vai em blocos binários, com a posição de cada um: um clipe de
+  // 5 min passa de 300 MB e não cabe numa chamada só.
   clipShortcuts: () => invoke('clips_shortcuts'),
-  saveClip: ({ mp4, thumb, duration }) => {
-    const thumbBytes = thumb ? new Uint8Array(thumb) : new Uint8Array(0);
-    const body = new Uint8Array(thumbBytes.length + mp4.byteLength);
-    body.set(thumbBytes, 0);
-    body.set(new Uint8Array(mp4), thumbBytes.length);
-    return invoke('clips_save', body, {
-      headers: { 'x-thumb-length': String(thumbBytes.length), 'x-duration': String(duration) },
-    });
-  },
+  beginClip: (thumb) => invoke('clips_begin', new Uint8Array(thumb ?? new ArrayBuffer(0))),
+  writeClip: (position, data) => invoke('clips_write', data, { headers: { 'x-position': String(position) } }),
+  finishClip: (duration) => invoke('clips_finish', new Uint8Array(0), { headers: { 'x-duration': String(duration) } }),
+  abortClip: () => fire('clips_abort'),
   listClips: () => invoke('clips_list'),
   trashClip: (name) => invoke('clips_trash', { name }),
   showClip: (name) => fire('clips_show', { name }),

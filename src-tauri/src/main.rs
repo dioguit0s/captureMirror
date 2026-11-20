@@ -43,6 +43,7 @@ fn main() {
             app.manage(audio::Audio::start(app.handle()));
             app.manage(shortcuts::register(app.handle()));
             app.manage(share::Share::start(app.handle()));
+            app.manage(clips::Writing::default());
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -65,7 +66,10 @@ fn main() {
             audio::loopback_start,
             audio::loopback_stop,
             shortcuts::clips_shortcuts,
-            clips::clips_save,
+            clips::clips_begin,
+            clips::clips_write,
+            clips::clips_finish,
+            clips::clips_abort,
             clips::clips_list,
             clips::clips_trash,
             clips::clips_show,

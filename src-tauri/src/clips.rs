@@ -81,22 +81,38 @@ pub struct Clip {
     thumb: Option<String>,
 }
 
-pub struct Saved {
-    pub name: String,
+// O clipe chega em blocos, com a posição de cada um no arquivo: um clipe de 5 min
+// passa de 300 MB, e mandá-lo de uma vez fazia o WebView2 copiar o pedido inteiro
+// várias vezes (8 GB de pico, medido). Grava com outro nome e renomeia no fim: a
+// coleção nunca lista um clipe pela metade.
+struct Pending {
+    file: fs::File,
+    temp: PathBuf,
+    name: String,
+    thumb: Vec<u8>,
 }
 
-pub fn save<R: Runtime>(app: &AppHandle<R>, mp4: &[u8], thumb: &[u8], duration: f64) -> std::io::Result<Saved> {
+#[derive(Default)]
+pub struct Writing(std::sync::Mutex<Option<Pending>>);
+
+fn begin<R: Runtime>(app: &AppHandle<R>, thumb: Vec<u8>) -> std::io::Result<Pending> {
     fs::create_dir_all(thumbs_dir(app))?;
     let name = unique_name(app);
-    // Grava com outro nome e renomeia: a coleção nunca lista um clipe pela metade.
     let temp = thumbs_dir(app).join(format!("{}.part", base_name(&name)));
-    fs::write(&temp, mp4)?;
+    let file = fs::OpenOptions::new().create(true).write(true).truncate(true).open(&temp)?;
+    Ok(Pending { file, temp, name, thumb })
+}
+
+fn finish<R: Runtime>(app: &AppHandle<R>, pending: Pending, duration: f64) -> std::io::Result<String> {
+    let Pending { file, temp, name, thumb } = pending;
+    file.sync_all()?;
+    drop(file);
     if !thumb.is_empty() {
         fs::write(thumb_path(app, &name), thumb)?;
     }
     fs::write(info_path(app, &name), serde_json::json!({ "duration": duration }).to_string())?;
     fs::rename(&temp, clips_dir(app).join(&name))?;
-    Ok(Saved { name })
+    Ok(name)
 }
 
 fn read_duration<R: Runtime>(app: &AppHandle<R>, name: &str) -> Option<f64> {
@@ -252,17 +268,66 @@ fn notify_saved<R: Runtime>(app: &AppHandle<R>, name: &str, duration: f64) {
     }
 }
 
+fn header_number(request: &tauri::ipc::Request<'_>, name: &str) -> Option<f64> {
+    request.headers().get(name)?.to_str().ok()?.parse().ok()
+}
+
+/// Começa um clipe. O corpo é a miniatura (pode vir vazio).
 #[tauri::command]
-pub fn clips_save<R: Runtime>(app: AppHandle<R>, request: tauri::ipc::Request<'_>) -> Result<String, String> {
-    let InvokeBody::Raw(body) = request.body() else { return Err("corpo do clipe ausente".into()) };
-    let header = |name: &str| request.headers().get(name).and_then(|value| value.to_str().ok()).map(str::to_owned);
-    let thumb_length: usize = header("x-thumb-length").and_then(|v| v.parse().ok()).unwrap_or(0).min(body.len());
-    let duration: f64 = header("x-duration").and_then(|v| v.parse().ok()).unwrap_or(0.0);
-    let (thumb, mp4) = body.split_at(thumb_length);
-    let saved = save(&app, mp4, thumb, duration).map_err(|error| error.to_string())?;
-    notify_saved(&app, &saved.name, duration);
+pub fn clips_begin<R: Runtime>(
+    app: AppHandle<R>,
+    writing: tauri::State<'_, Writing>,
+    request: tauri::ipc::Request<'_>,
+) -> Result<(), String> {
+    let thumb = match request.body() {
+        InvokeBody::Raw(bytes) => bytes.clone(),
+        _ => Vec::new(),
+    };
+    let mut slot = writing.0.lock().unwrap();
+    // Um clipe anterior que ficou pela metade: apaga.
+    if let Some(old) = slot.take() {
+        let _ = fs::remove_file(&old.temp);
+    }
+    *slot = Some(begin(&app, thumb).map_err(|error| error.to_string())?);
+    Ok(())
+}
+
+/// Um bloco do MP4, na posição do header x-position.
+#[tauri::command]
+pub fn clips_write(writing: tauri::State<'_, Writing>, request: tauri::ipc::Request<'_>) -> Result<(), String> {
+    let InvokeBody::Raw(data) = request.body() else { return Err("bloco do clipe ausente".into()) };
+    let position = header_number(&request, "x-position").ok_or("posição do bloco ausente")? as u64;
+    let mut slot = writing.0.lock().unwrap();
+    let pending = slot.as_mut().ok_or("nenhum clipe em gravação")?;
+    use std::io::Write;
+    pending.file.seek(SeekFrom::Start(position)).map_err(|error| error.to_string())?;
+    pending.file.write_all(data).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn clips_finish<R: Runtime>(
+    app: AppHandle<R>,
+    writing: tauri::State<'_, Writing>,
+    request: tauri::ipc::Request<'_>,
+) -> Result<String, String> {
+    let duration = header_number(&request, "x-duration").unwrap_or(0.0);
+    let pending = writing.0.lock().unwrap().take().ok_or("nenhum clipe em gravação")?;
+    let temp = pending.temp.clone();
+    let name = finish(&app, pending, duration).map_err(|error| {
+        let _ = fs::remove_file(&temp);
+        error.to_string()
+    })?;
+    notify_saved(&app, &name, duration);
     notify_changed(&app);
-    Ok(saved.name)
+    Ok(name)
+}
+
+#[tauri::command]
+pub fn clips_abort(writing: tauri::State<'_, Writing>) {
+    if let Some(pending) = writing.0.lock().unwrap().take() {
+        drop(pending.file);
+        let _ = fs::remove_file(&pending.temp);
+    }
 }
 
 #[tauri::command]

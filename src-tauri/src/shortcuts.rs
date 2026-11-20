@@ -6,9 +6,10 @@ use tauri::plugin::TauriPlugin;
 use tauri::{AppHandle, Emitter, Runtime};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
-const CLIP_SHORTCUTS: [(&str, &str, u32); 2] = [
+const CLIP_SHORTCUTS: [(&str, &str, u32); 3] = [
     ("CommandOrControl+Shift+F9", "Ctrl+Shift+F9", 30),
     ("CommandOrControl+Shift+F10", "Ctrl+Shift+F10", 60),
+    ("CommandOrControl+Shift+F11", "Ctrl+Shift+F11", 300),
 ];
 
 pub struct Shortcuts {

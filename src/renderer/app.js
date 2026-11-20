@@ -46,7 +46,7 @@ const volumeSlider = $('#volume');
 const volumeFill = $('#volume-fill');
 const volumePct = $('#volume-pct');
 const recDot = $('#rec');
-const clipButtons = { 30: $('#clip-30'), 60: $('#clip-60') };
+const clipButtons = { 30: $('#clip-30'), 60: $('#clip-60'), 300: $('#clip-300') };
 const collectionButton = $('#collection');
 const shareButton = $('#share');
 const latencyButton = $('#latency');
@@ -221,6 +221,12 @@ function clipMessage() {
   return '';
 }
 
+// "os últimos 30 s", "o último minuto", "os últimos 5 minutos".
+function clipSpan(seconds) {
+  if (seconds === 60) return 'o último minuto';
+  return seconds > 60 ? `os últimos ${seconds / 60} minutos` : `os últimos ${seconds} s`;
+}
+
 function renderClipControls() {
   const ready = replay.running && !clipping;
   recDot.hidden = !replay.running;
@@ -229,7 +235,7 @@ function renderClipControls() {
     const button = clipButtons[shortcut.seconds];
     if (!button) continue;
     button.disabled = !ready;
-    const label = shortcut.seconds === 60 ? 'o último minuto' : `os últimos ${shortcut.seconds} s`;
+    const label = clipSpan(shortcut.seconds);
     button.title = `Clipar ${label} (${shortcut.label})`;
     button.setAttribute('aria-label', button.title);
   }
@@ -356,13 +362,21 @@ async function saveClip(seconds) {
   if (clipping || !replay.running) return;
   clipping = true;
   render();
+  // A miniatura é o quadro na tela no momento do pedido.
+  let started = false;
   try {
-    const result = await replay.clip(seconds);
-    if (!result) return;
-    const thumb = await grabThumbnail();
-    await api.saveClip({ mp4: result.buffer, thumb, duration: result.duration });
+    if (!replay.hasPackets) return;
+    await api.beginClip(await grabThumbnail());
+    started = true;
+    const result = await replay.clip(seconds, (position, data) => api.writeClip(position, data));
+    if (!result) {
+      api.abortClip();
+      return;
+    }
+    await api.finishClip(result.duration);
     clipErrors.save = null;
   } catch (error) {
+    if (started) api.abortClip();
     console.error(`clipe: ${error.name}: ${error.message}`);
     clipErrors.save = error;
     overlay.show();
@@ -536,6 +550,7 @@ output.onInfo((info) => {
 });
 clipButtons[30].addEventListener('click', () => saveClip(30));
 clipButtons[60].addEventListener('click', () => saveClip(60));
+clipButtons[300].addEventListener('click', () => saveClip(300));
 collectionButton.addEventListener('click', () => api.openCollection());
 shareButton.addEventListener('click', () => api.openShare());
 api.onClipRequest((seconds) => saveClip(seconds));

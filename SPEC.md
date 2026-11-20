@@ -16,7 +16,7 @@ Placa USB ──> getUserMedia (vídeo, WebView2) ──> <video muted> ──> 
 
 Clipes:
 vídeo (clone) ─> MediaStreamTrackProcessor ─> VideoEncoder H.264 ─┐
-loopback WASAPI (Rust) ─> AudioWorklet ─┬─> AudioContext (sem saída) ─> AudioEncoder ┴─> buffer na RAM (~62 s)
+loopback WASAPI (Rust) ─> AudioWorklet ─┬─> AudioContext (sem saída) ─> AudioEncoder ┴─> buffer na RAM (~302 s)
 microfone opc. (getUserMedia) ──────────┘                                                │ atalho ou botão
                                            mediabunny (MP4) <────────────────────────────┘ ─> Rust grava em Vídeos\Capture Mirror
 
@@ -119,13 +119,13 @@ O app usa o DirectShow em vez do Media Foundation, porque foi o driver com melho
 | Tema | Decisão | Motivo |
 |---|---|---|
 | Linguagem | Continua Electron, com WebCodecs | O encoder de vídeo é o mesmo do Chromium. Reescrever jogaria fora o que já foi validado com a placa |
-| Buffer | Pacotes já codificados na RAM, 62 s, um quadro-chave por segundo. O clipe começa no quadro-chave mais próximo de "agora − N s" | Clipar é instantâneo e nada vai para o disco sem pedido. O clipe pode ter até 1 s a mais que o pedido |
+| Buffer | Pacotes já codificados na RAM, 302 s (62 s até a fase 6), um quadro-chave por segundo. O clipe começa no quadro-chave mais próximo de "agora − N s" | Clipar é instantâneo e nada vai para o disco sem pedido. O clipe pode ter até 1 s a mais que o pedido |
 | Vídeo | H.264 High, 8 Mbps em 720p60, `latencyMode: realtime`. Tenta `prefer-hardware` e cai para software (o caso deste PC, por causa do sandbox da GPU, que fica ligado). Se não houver H.264, usa VP9 | MP4 com H.264 toca em qualquer lugar, inclusive no Discord |
 | Áudio | AAC 160 kbps, 48 kHz, estéreo (Opus se não houver AAC) | Mesmo motivo |
 | Som do PC | **Até a fase 5:** loopback via `getDisplayMedia` + `setDisplayMediaRequestHandler`. **Desde a fase 6:** loopback WASAPI no Rust (ver "Fase 6") | É a única forma de pegar o som do sistema no Chromium. O som da placa entra porque o app o toca, sem duplicar. Volume e mute do app valem para o clipe. Não precisou de gesto do usuário |
 | Microfone | Opcional, misturado num `AudioContext` que não toca nada, com o processamento de voz ligado. Só fica aberto com a imagem no ar | Não pode sair nos alto-falantes nem no stream |
 | Sincronia | Cada faixa é levada ao relógio de `performance.now()` pela chegada do primeiro quadro | O Chromium não garante a mesma origem nos timestamps de vídeo e áudio |
-| Disparo | Atalhos globais Ctrl+Shift+F9 (30 s) e Ctrl+Shift+F10 (1 min), mais botões no overlay. Atalho ocupado vira aviso no overlay | Funciona com o Discord ou o jogo em foco |
+| Disparo | Atalhos globais Ctrl+Shift+F9 (30 s), Ctrl+Shift+F10 (1 min) e Ctrl+Shift+F11 (5 min), mais botões no overlay. Atalho ocupado vira aviso no overlay | Funciona com o Discord ou o jogo em foco |
 | Aviso de clipe salvo | Notificação do Windows. Clicar abre a coleção | Um aviso dentro da janela iria para o stream |
 | Coleção | Janela separada, com título próprio. Arquivos servidos por `clip://`, que só aceita `.mp4` direto na pasta e implementa Range (206). Excluir manda para a Lixeira | O Go Live mostra só a janela principal. Sem Range, o player não consegue avançar no vídeo |
 | Arquivos | `Vídeos\Capture Mirror\Clipe AAAA-MM-DD HH-MM-SS.mp4`. A miniatura (quadro da tela no momento do clipe) e a duração ficam em `.thumbs\` | O MP4 é gravado com outro nome e renomeado, então a coleção nunca lista um clipe pela metade |
@@ -135,6 +135,7 @@ O app usa o DirectShow em vez do Media Foundation, porque foi o driver com melho
 Feitas com a placa MS2109 em 720p60 (Intel Iris Xe, 12 núcleos lógicos):
 
 - **Arquivos válidos:** H.264 High 1280x720 a ~59,6 FPS, AAC estéreo 48 kHz. Os clipes de 30 s duraram de 29,5 a 31 s e o de 1 min, 60,8 s. Um som tocado no PC apareceu no clipe junto com o som da placa.
+- **Clipe de 5 min (fase 6, 1080p a 30 FPS na MS2109):** o buffer cresce ~75 MB por minuto e fica em ~375 MB cheio (renderer em ~520 MB). O arquivo tem ~350 MB e 300,7 s. Mandar o MP4 inteiro numa chamada do IPC fazia o WebView2 copiar o pedido várias vezes: **pico de 8,4 GB** e 23 s. Agora o mediabunny grava em blocos de 8 MB (`StreamTarget` com `fastStart: 'reserve'`, metadados no começo) direto no `.part` pelo Rust: **pico de 1,1 GB** e 32 s para gravar. O `ffmpeg` acusa um "dts não crescente" ao decodificar, mas é arredondamento dele próprio: os DTS do arquivo crescem sem repetir.
 - **Atalho global** testado com outra janela em foco. **Seek** no player da coleção, **Lixeira** e build empacotado (`--dir`) também funcionaram.
 - **CPU: ~9% do total com o buffer ligado** (o renderer usa ~0,7 núcleo), contra ~2,5% sem ele. A tela se manteve em 58,7 FPS. O heap JS ficou em ~45 MB com o buffer cheio.
 - **Encoder de hardware indisponível:** o `chrome://gpu` lista "Encoding" vazio, e o `isConfigSupported` com `prefer-hardware` retorna `false` para todos os codecs, apesar de o driver da Intel registrar o "Quick Sync Video H.264 Encoder MFT". Com `--disable-gpu-sandbox`, o H.264 de hardware aparece. Ou seja, o sandbox da GPU impede o encoder do driver de carregar. **Decisão (06/11/2026): manter o sandbox da GPU ligado e o encoder por software.** A medição abaixo mostrou ganho de CPU pequeno, que não justifica tirar uma proteção do app inteiro. O código continua tentando `prefer-hardware` primeiro, então outro PC em que o encoder de hardware funcione dentro do sandbox vai usá-lo sozinho. Se a qualidade em cenas rápidas incomodar, o caminho é uma opção "Usar encoder de hardware", desligada por padrão e com retorno automático para o software.

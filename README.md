@@ -51,14 +51,15 @@ Trocar a resolução reabre a placa por um instante e recomeça a memória dos c
 
 ## Clipes
 
-Enquanto a imagem está no ar, o app guarda o último minuto na memória. Nada vai para o disco até você clipar. Um ponto vermelho no overlay indica que isso está ativo.
+Enquanto a imagem está no ar, o app guarda os últimos 5 minutos na memória. Nada vai para o disco até você clipar. Um ponto vermelho no overlay indica que isso está ativo.
 
 | Atalho | Clipe |
 |---|---|
 | Ctrl+Shift+F9 | Últimos 30 segundos |
 | Ctrl+Shift+F10 | Último minuto |
+| Ctrl+Shift+F11 | Últimos 5 minutos |
 
-Os atalhos funcionam mesmo com outra janela em foco, como o Discord ou um jogo. Também dá para clipar pelos botões **30 s** e **1 min** do overlay. O Windows avisa com uma notificação quando o clipe é salvo.
+Os atalhos funcionam mesmo com outra janela em foco, como o Discord ou um jogo. Também dá para clipar pelos botões **30 s**, **1 min** e **5 min** do overlay. O Windows avisa com uma notificação quando o clipe é salvo.
 
 **O que entra no clipe:**
 - A imagem da placa.
@@ -67,7 +68,9 @@ Os atalhos funcionam mesmo com outra janela em foco, como o Discord ou um jogo. 
 
 Volume e mute do app também valem para o clipe. Com o mute ligado, o som da placa não entra.
 
-Os clipes são salvos em MP4 (H.264 e AAC) em `Vídeos\Capture Mirror`. Um clipe de 1 minuto ocupa de 10 a 60 MB, conforme a imagem.
+Os clipes são salvos em MP4 (H.264 e AAC) em `Vídeos\Capture Mirror`. Um clipe de 1 minuto ocupa de 10 a 70 MB, conforme a imagem, e um de 5 minutos, até ~350 MB.
+
+Guardar 5 minutos usa memória: em 1080p, o buffer cheio ocupa ~375 MB de RAM, e em 720p, um pouco menos.
 
 ### Coleção
 
@@ -122,7 +125,7 @@ Enquanto a guia está conectada, o botão fica azul, e **o som passa a sair pela
 | FPS abaixo do esperado | Pressione F1 para ver os valores reais. Nas webcams, pouca luz também reduz o FPS |
 | Som em mono | É o que a placa testada oferece: ela se apresenta ao Windows como mono |
 | **Os clipes estão sem o som do PC** | O Windows não entregou o som do sistema. Reinicie o app. Se continuar, confira o dispositivo de saída padrão |
-| **Atalho em uso por outro aplicativo** | Outro programa já usa Ctrl+Shift+F9 ou F10. Use os botões do overlay ou feche o outro programa e reabra o app |
+| **Atalho em uso por outro aplicativo** | Outro programa já usa Ctrl+Shift+F9, F10 ou F11. Use os botões do overlay ou feche o outro programa e reabra o app |
 
 ## Onde ficam as configurações
 
