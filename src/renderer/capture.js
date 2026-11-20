@@ -3,8 +3,28 @@
 const isRealDevice = ({ deviceId }) =>
   deviceId && deviceId !== 'default' && deviceId !== 'communications';
 
+// O WebView2 só revela ids e nomes depois de uma permissão concedida. O Rust
+// concede sem perguntar, mas alguém precisa pedir: uma abertura rápida resolve,
+// e a permissão fica salva no perfil do app para as próximas vezes.
+let permissionAsked = false;
+
+async function ensurePermission(devices) {
+  if (permissionAsked || devices.some(({ deviceId }) => deviceId)) return false;
+  permissionAsked = true;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    stream.getTracks().forEach((track) => track.stop());
+    return true;
+  } catch (error) {
+    console.error(`permissão de mídia: ${error.name}: ${error.message}`);
+    return false;
+  }
+}
+
 export async function listDevices() {
-  const devices = (await navigator.mediaDevices.enumerateDevices()).filter(isRealDevice);
+  let devices = await navigator.mediaDevices.enumerateDevices();
+  if (await ensurePermission(devices)) devices = await navigator.mediaDevices.enumerateDevices();
+  devices = devices.filter(isRealDevice);
   return {
     video: devices.filter(({ kind }) => kind === 'videoinput'),
     audio: devices.filter(({ kind }) => kind === 'audioinput'),
@@ -12,11 +32,13 @@ export async function listDevices() {
 }
 
 // O deviceId pode mudar entre execuções. O label é a segunda opção, mais estável.
+// O nome também vale com ou sem o id USB no fim: o Chromium escreve
+// "Placa (534d:2109)", o Windows só "Placa". Assim a escolha salva pelo app
+// antigo continua valendo no motor de áudio nativo.
 export function findDevice(devices, saved) {
-  return (
-    devices.find(({ deviceId }) => deviceId === saved.id) ??
-    devices.find(({ label }) => label && label === saved.label)
-  );
+  const sameName = (label) =>
+    label && saved.label && (label === saved.label || saved.label.startsWith(`${label} (`) || label.startsWith(`${saved.label} (`));
+  return devices.find(({ deviceId }) => deviceId === saved.id) ?? devices.find(({ label }) => sameName(label));
 }
 
 // Modos oferecidos no overlay. O padrão é 720p: na placa testada (MS2109), 1080p
@@ -61,18 +83,6 @@ export async function openVideo(deviceId, resolutionId) {
   }
 }
 
-export function openAudio(deviceId) {
-  return navigator.mediaDevices.getUserMedia({
-    audio: {
-      deviceId: { exact: deviceId },
-      echoCancellation: false,
-      noiseSuppression: false,
-      autoGainControl: false,
-      channelCount: 2,
-      sampleRate: 48000,
-    },
-  });
-}
 
 // O formato de pixel não aparece aqui: o Chromium o escolhe e não o expõe ao JS.
 export function logTrackInfo(track) {

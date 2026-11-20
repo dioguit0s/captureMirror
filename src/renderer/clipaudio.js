@@ -4,7 +4,8 @@
 //
 // O loopback é tudo o que sai no dispositivo padrão do Windows. O som da placa
 // entra porque o próprio app o toca, então volume e mute do app valem aqui também.
-export function createClipAudio() {
+// Ele vem do Rust (WASAPI) em blocos PCM e entra no contexto por um AudioWorklet.
+export function createClipAudio(api) {
   let context = null;
   let destination = null;
   let loopback = null;
@@ -37,22 +38,21 @@ export function createClipAudio() {
     },
 
     get hasLoopback() {
-      return Boolean(loopback?.stream.getAudioTracks()[0]?.readyState === 'live');
+      return Boolean(loopback);
     },
 
+    // O Rust reabre sozinho quando a saída padrão muda, então basta começar uma vez.
     async startLoopback() {
       ensureContext();
-      if (this.hasLoopback) return;
-      detach(loopback);
-      loopback = null;
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: true,
-        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+      if (loopback) return;
+      await context.audioWorklet.addModule('loopback-worklet.js');
+      const node = new AudioWorkletNode(context, 'loopback-feed', {
+        numberOfInputs: 0,
+        outputChannelCount: [2],
       });
-      // O Chromium só entrega o loopback junto com uma captura de tela. A imagem não é usada.
-      stream.getVideoTracks().forEach((track) => track.stop());
-      if (!stream.getAudioTracks().length) throw new DOMException('Sem áudio do sistema', 'NotFoundError');
-      loopback = attach(stream);
+      node.connect(destination);
+      await api.audio.startLoopback((chunk) => node.port.postMessage(chunk, [chunk]));
+      loopback = node;
       await context.resume();
     },
 

@@ -72,8 +72,8 @@ async function refresh() {
   empty.hidden = clips.length > 0;
   const shortcuts = await api.clipShortcuts();
   empty.textContent = `Nenhum clipe ainda. Enquanto espelha a placa, use ${shortcuts.shortcuts
-    .map(({ label, seconds }) => `${label} (${seconds === 60 ? '1 min' : `${seconds} s`})`)
-    .join(' ou ')}, ou os botões do overlay.`;
+    .map(({ label, seconds }) => `${label} (${seconds >= 60 ? `${seconds / 60} min` : `${seconds} s`})`)
+    .join(', ')}, ou os botões do overlay.`;
   if (current && !clips.some(({ name }) => name === current.name)) closePlayer();
 }
 

@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- O nome da guia é o que aparece na lista do Meet. -->
+    <title>Capture Mirror</title>
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="player.css" />
+    <script type="module" src="player.js"></script>
+  </head>
+  <body>
+    <video id="video" autoplay playsinline></video>
+
+    <div id="card" class="cm-center" hidden>
+      <div class="cm-card" role="status">
+        <h1 id="card-title"></h1>
+        <p id="card-text"></p>
+        <button id="card-action" class="cm-btn" type="button" hidden></button>
+      </div>
+    </div>
+
+    <div id="hint" class="cm-hint" role="status" hidden>
+      No Meet: <strong>Apresentar → Uma guia</strong>, escolha <strong>Capture Mirror</strong> e deixe
+      <strong>Compartilhar também o áudio da guia</strong> ligado.
+    </div>
+  </body>
+</html>

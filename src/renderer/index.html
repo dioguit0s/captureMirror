@@ -2,9 +2,9 @@
 <html lang="pt-BR">
   <head>
     <meta charset="utf-8" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'" />
     <title>Capture Mirror</title>
     <link rel="stylesheet" href="style.css" />
+    <script type="module" src="api.js"></script>
     <script type="module" src="app.js"></script>
   </head>
   <body>
@@ -69,11 +69,17 @@
           <input id="volume" class="cm-range" type="range" min="0" max="100" step="1" aria-label="Volume" />
         </div>
         <div id="volume-pct" class="cm-pct"></div>
+        <button id="latency" class="cm-mute cm-toggle" type="button" aria-pressed="true">
+          <svg class="cm-i" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M13 2.5L5 13.5h6l-1 8 8-11h-6l1-8z"></path>
+          </svg>
+        </button>
         <div class="cm-sep"></div>
         <div id="overlay-mic"></div>
         <span id="rec" class="cm-rec" hidden></span>
         <button id="clip-30" class="cm-chip" type="button">30 s</button>
         <button id="clip-60" class="cm-chip" type="button">1 min</button>
+        <button id="clip-300" class="cm-chip" type="button">5 min</button>
         <button
           id="collection"
           class="cm-mute"
@@ -86,6 +92,14 @@
             <rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"></rect>
             <rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"></rect>
             <rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5"></rect>
+          </svg>
+        </button>
+        <div class="cm-sep"></div>
+        <button id="share" class="cm-mute cm-share" type="button" aria-pressed="false">
+          <svg class="cm-i" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M10 20H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v5"></path>
+            <path d="M3 8.5h18"></path>
+            <path d="M14 20l7-7M16 13h5v5"></path>
           </svg>
         </button>
       </div>

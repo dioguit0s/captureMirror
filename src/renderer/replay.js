@@ -1,15 +1,16 @@
 import {
-  BufferTarget,
   EncodedAudioPacketSource,
   EncodedPacket,
   EncodedVideoPacketSource,
   Mp4OutputFormat,
   Output,
-} from '../../node_modules/mediabunny/dist/bundles/mediabunny.min.mjs';
+  StreamTarget,
+} from './vendor/mediabunny.min.mjs';
 
 // Buffer de replay: vídeo e áudio são codificados o tempo todo e só os pacotes dos
 // últimos segundos ficam na memória. Nada vai para o disco até alguém clipar.
-export const MAX_CLIP_SECONDS = 60;
+// O maior clipe é de 5 min. Em 720p60 (8 Mbps), o buffer cheio ocupa ~330 MB.
+export const MAX_CLIP_SECONDS = 300;
 // Margem de um quadro-chave: o corte começa sempre num quadro-chave.
 const KEEP_US = (MAX_CLIP_SECONDS + 2) * 1e6;
 const KEYFRAME_INTERVAL_US = 1e6;
@@ -247,17 +248,25 @@ function withDurations(packets, fallbackUs) {
   });
 }
 
-async function mux({ video, audio, videoCodec, videoConfig, audioCodec, audioConfig }) {
+// O MP4 sai em blocos para `write(position, data)`. Com fastStart 'reserve', os
+// metadados ficam no começo do arquivo (prévia rápida no Discord) sem o arquivo
+// inteiro na memória: o espaço é reservado pela contagem de pacotes, que é conhecida.
+const WRITE_CHUNK_BYTES = 8 * 1024 * 1024;
+
+async function mux({ video, audio, videoCodec, videoConfig, audioCodec, audioConfig }, write) {
   const output = new Output({
-    format: new Mp4OutputFormat({ fastStart: 'in-memory' }),
-    target: new BufferTarget(),
+    format: new Mp4OutputFormat({ fastStart: 'reserve' }),
+    target: new StreamTarget(
+      new WritableStream({ write: ({ position, data }) => write(position, data) }),
+      { chunked: true, chunkSize: WRITE_CHUNK_BYTES },
+    ),
   });
   const videoSource = new EncodedVideoPacketSource(videoCodec);
-  output.addVideoTrack(videoSource);
+  output.addVideoTrack(videoSource, { maximumPacketCount: video.length });
   let audioSource = null;
   if (audio.length && audioConfig) {
     audioSource = new EncodedAudioPacketSource(audioCodec);
-    output.addAudioTrack(audioSource);
+    output.addAudioTrack(audioSource, { maximumPacketCount: audio.length });
   }
   await output.start();
 
@@ -279,7 +288,6 @@ async function mux({ video, audio, videoCodec, videoConfig, audioCodec, audioCon
     }
   }
   await output.finalize();
-  return output.target.buffer;
 }
 
 export function createReplayBuffer({ onError }) {
@@ -304,6 +312,10 @@ export function createReplayBuffer({ onError }) {
       return Boolean(store);
     },
 
+    get hasPackets() {
+      return Boolean(store?.video.length && store.videoConfig);
+    },
+
     // As faixas recebidas passam a ser do buffer, que as para ao parar.
     // Passe clones para não afetar a exibição.
     async start(videoTrack, audioTrack) {
@@ -315,8 +327,9 @@ export function createReplayBuffer({ onError }) {
 
     stop,
 
-    // Monta o MP4 dos últimos `seconds` segundos, ou do que houver no buffer.
-    async clip(seconds) {
+    // Grava o MP4 dos últimos `seconds` segundos, ou do que houver no buffer, por
+    // `write(position, data)`. Devolve a duração, ou null se o buffer estiver vazio.
+    async clip(seconds, write) {
       if (!store?.video.length || !store.videoConfig) return null;
       const { video, audio } = store;
       const end = video.at(-1).timestamp;
@@ -333,9 +346,9 @@ export function createReplayBuffer({ onError }) {
         audio.filter(({ timestamp }) => timestamp >= start && timestamp <= end),
         AAC_FRAME_US,
       );
-      const buffer = await mux({ ...store, video: clipVideo, audio: clipAudio });
+      await mux({ ...store, video: clipVideo, audio: clipAudio }, write);
       const last = clipVideo.at(-1);
-      return { buffer, duration: (last.timestamp + last.duration - start) / 1e6 };
+      return { duration: (last.timestamp + last.duration - start) / 1e6 };
     },
   };
 }
