@@ -1,0 +1,47 @@
+[package]
+name = "capture-mirror"
+version = "0.3.0"
+description = "Espelha vídeo e áudio de uma placa de captura USB numa janela, para compartilhar no Discord."
+edition = "2021"
+publish = false
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Mesma versão que o Tauri já usa, para não compilar duas.
+windows-core = "0.62"
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-opener = "2"
+trash = "5"
+tauri-winrt-notification = "0.8.1"
+percent-encoding = "2"
+drag = "2"
+
+[dependencies.windows]
+version = "0.62"
+features = [
+  "Win32_Devices_FunctionDiscovery",
+  "Win32_Foundation",
+  "Win32_Media_Audio",
+  "Win32_Media_KernelStreaming",
+  "Win32_Media_Multimedia",
+  "Win32_Security",
+  "Win32_Security_Cryptography",
+  "Win32_System_Com",
+  "Win32_System_Com_StructuredStorage",
+  "Win32_System_SystemInformation",
+  "Win32_System_Threading",
+  "Win32_System_Variant",
+  "Win32_UI_Shell_PropertiesSystem",
+]
+
+[profile.release]
+# Binário menor: o app não precisa de símbolos nem de unwinding detalhado.
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

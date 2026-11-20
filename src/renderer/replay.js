@@ -5,7 +5,7 @@ import {
   EncodedVideoPacketSource,
   Mp4OutputFormat,
   Output,
-} from '../../node_modules/mediabunny/dist/bundles/mediabunny.min.mjs';
+} from './vendor/mediabunny.min.mjs';
 
 // Buffer de replay: vídeo e áudio são codificados o tempo todo e só os pacotes dos
 // últimos segundos ficam na memória. Nada vai para o disco até alguém clipar.

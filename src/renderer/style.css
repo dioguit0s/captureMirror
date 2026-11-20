@@ -413,7 +413,9 @@ input:focus-visible {
 
 /* Modo navegador conectado: destaque na cor da marca, diferente do mute. */
 .cm-mute.cm-share[aria-pressed='true'],
-.cm-mute.cm-share[aria-pressed='true']:hover {
+.cm-mute.cm-share[aria-pressed='true']:hover,
+.cm-mute.cm-toggle[aria-pressed='true'],
+.cm-mute.cm-toggle[aria-pressed='true']:hover {
   background: var(--cm-color-accent);
   color: #ffffff;
 }

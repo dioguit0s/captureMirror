@@ -6,57 +6,66 @@ App desktop para Windows que espelha vídeo e áudio de uma placa de captura USB
 
 A **fase 4 (clipes e coleção)** foi implementada e testada com a placa real, mas sem a call do Discord. Os detalhes estão em "Fase 4" e "Clipes: medições".
 
+A **fase 6 (Tauri e áudio nativo)** trocou o Electron pelo Tauri 2 com WebView2 e passou o som da placa para um motor WASAPI em Rust. O atraso do som caiu de ~125 ms para ~65 ms, e o app ficou bem menor. Os detalhes estão em "Fase 6". As fases anteriores descrevem decisões tomadas no Electron. As que mudaram estão marcadas lá.
+
 ## Arquitetura
 
 ```
-Placa USB ──> getUserMedia (vídeo) ──> <video muted> ──────────> janela "Capture Mirror" ──> Discord
-         └──> getUserMedia (áudio) ──> AudioContext ──> Gain ──> saída do processo ─────────> Discord
+Placa USB ──> getUserMedia (vídeo, WebView2) ──> <video muted> ──> janela "Capture Mirror" ──> Discord
+         └──> WASAPI (Rust) ──> fila mínima ──> volume/mute ──> saída padrão em modo raw ──> Discord
 
-Clipes (fase 4):
+Clipes:
 vídeo (clone) ─> MediaStreamTrackProcessor ─> VideoEncoder H.264 ─┐
-loopback do PC ─┬─> AudioContext próprio (sem saída) ─> AudioEncoder ┴─> buffer na RAM (~62 s)
-microfone opc. ─┘                                                         │ atalho ou botão
-                                           mediabunny (MP4) <─────────────┘ ─> main grava em Vídeos\Capture Mirror
+loopback WASAPI (Rust) ─> AudioWorklet ─┬─> AudioContext (sem saída) ─> AudioEncoder ┴─> buffer na RAM (~62 s)
+microfone opc. (getUserMedia) ──────────┘                                                │ atalho ou botão
+                                           mediabunny (MP4) <────────────────────────────┘ ─> Rust grava em Vídeos\Capture Mirror
 
-Modo navegador (fase 5), para o Google Meet:
-vídeo (mesma faixa) ───────────┐
-Gain ─> MediaStreamDestination ┴─> RTCPeerConnection ══ WebRTC local ══> guia do navegador (src/player) ─> Meet "Uma guia"
-            oferta e resposta: renderer ⇄ IPC ⇄ main (HTTP + SSE em 127.0.0.1:47830) ⇄ página
+Modo navegador, para o Google Meet (só com uma guia conectada):
+vídeo (mesma faixa) ───────────────────────────────────┐
+placa (getUserMedia) ─> Gain ─> MediaStreamDestination ┴─> RTCPeerConnection ══ WebRTC local ══> guia (src/player) ─> Meet
+            oferta e resposta: renderer ⇄ IPC ⇄ Rust (HTTP + SSE em 127.0.0.1:47830) ⇄ página
 ```
 
-- **Main process:** janela, permissões de mídia, flags do Chromium, leitura e gravação do JSON de configuração.
-- **Preload:** ponte mínima via `contextBridge` (carregar e salvar configuração, alternar tela cheia).
-- **Renderer:** captura, exibição, áudio e overlay. Toda a mídia fica aqui.
+- **Rust (`src-tauri`):** janelas, permissões de mídia, flags do WebView2, configuração, motor de áudio e loopback, clipes (gravação, lista, Lixeira, protocolo `clip`), atalhos globais, aviso do Windows e o servidor do modo navegador.
+- **Ponte (`src/renderer/api.js`):** `window.captureMirror`, com a mesma forma do antigo preload do Electron, sobre `invoke` e eventos do Tauri.
+- **Renderer (WebView2):** vídeo, overlay, codificação dos clipes e WebRTC do modo navegador.
 
 ## Estrutura de pastas
 
 ```
 captureMirror/
 ├─ package.json
-├─ electron-builder.yml
+├─ scripts/vendor.js         # copia o mediabunny para src/renderer/vendor
+├─ src-tauri/                # lado nativo (Rust): tauri.conf.json, capabilities, ícones
+│  └─ src/
+│     ├─ main.rs             # janelas, permissões, protocolo clip, registro dos comandos
+│     ├─ settings.rs         # JSON na pasta de dados, com migração do Electron
+│     ├─ window.rs           # posição e tamanho, tela cheia
+│     ├─ audio/              # motor WASAPI (engine.rs), loopback, dispositivos
+│     ├─ clips.rs            # pasta, lista, gravação, Lixeira, protocolo, arrastar, aviso
+│     ├─ shortcuts.rs        # atalhos globais dos clipes
+│     └─ share.rs            # servidor do modo navegador (HTTP + SSE)
+├─ tools/medir-latencia/     # passthrough.cpp e pulse.cpp: medem o atraso do som
 ├─ README.md
 ├─ SPEC.md
 ├─ TELAS.md                  # briefing de telas e ícone para o protótipo
 ├─ Main.dc.html, Icone.dc.html  # cópias do protótipo, só para referência
 ├─ design/                   # tokens e ícone originais
-├─ build/icon.png            # ícone usado no empacotamento
-└─ src/
-   ├─ main/
-   │  ├─ main.js             # janela, permissões, flags
-   │  ├─ settings.js         # JSON em userData (fase 2)
-   │  ├─ clips.js            # pasta, lista, gravação e protocolo clip:// dos clipes (fase 4)
-   │  ├─ browserShare.js     # servidor local do modo navegador: página, SSE e resposta WebRTC (fase 5)
-   │  └─ preload.js          # fase 2: a fase 1 não precisa de ponte com o main
+├─ build/icon.png            # fonte dos ícones de src-tauri/icons
+└─ src/                      # servido pelo Tauri como está (frontendDist)
    ├─ renderer/
    │  ├─ index.html
    │  ├─ style.css
+   │  ├─ api.js              # ponte window.captureMirror sobre o Tauri
    │  ├─ app.js              # orquestra tudo
-   │  ├─ capture.js          # getUserMedia, fallback, capacidades
-   │  ├─ audio.js            # AudioContext e GainNode
+   │  ├─ capture.js          # getUserMedia, fallback, capacidades, permissão do WebView2
+   │  ├─ audio.js            # som da placa pelo motor nativo; caminho do modo navegador
+   │  ├─ loopback-worklet.js # toca no contexto dos clipes o som do PC vindo do Rust
+   │  ├─ vendor/             # mediabunny (gerado pelo npm run vendor, fora do git)
    │  ├─ overlay.js          # overlay, cursor e painel de informações
    │  ├─ select.js           # seletor de dispositivo do protótipo
    │  ├─ replay.js           # buffer de replay: encoders, pacotes na RAM, MP4 (fase 4)
-   │  ├─ clipaudio.js        # loopback do PC + microfone opcional para os clipes (fase 4)
+   │  ├─ clipaudio.js        # som do PC (do Rust) + microfone opcional para os clipes
    │  ├─ share.js            # emissor WebRTC do modo navegador (fase 5)
    │  └─ clips.html/.js/.css # janela da coleção (fase 4)
    └─ player/                # página aberta no navegador pelo modo navegador (fase 5)
@@ -67,13 +76,12 @@ captureMirror/
 | Tema | Decisão | Motivo |
 |---|---|---|
 | Linguagem | JavaScript puro com módulos ES no renderer | Sem etapa de build. O projeto é pequeno |
-| Dependências | `electron` e `electron-builder` para desenvolvimento. Na fase 4, `mediabunny` (MPL-2.0, sem dependências) em produção, importado direto de `node_modules` | Gerar MP4 à mão daria mais código para manter e mais risco de arquivo incompatível |
+| Dependências | `@tauri-apps/cli` para desenvolvimento (desde a fase 6; antes, `electron` e `electron-builder`). Na fase 4, `mediabunny` (MPL-2.0, sem dependências) em produção, copiado para `src/renderer/vendor` pelo `npm run vendor` | Gerar MP4 à mão daria mais código para manter e mais risco de arquivo incompatível |
 | Segurança | `contextIsolation` e `sandbox` ligados, `nodeIntegration` desligado, CSP restrita, só as permissões `media` e `display-capture` liberadas | Não há conteúdo remoto, mas o custo é zero. `display-capture` é para o loopback dos clipes |
 | Dispositivo | `deviceId: { exact }` | Com `ideal`, o Chromium poderia trocar a placa pela webcam sem avisar |
 | Vídeo | Resolução escolhida no overlay (480p, 720p, 1080p e, se `getCapabilities()` permitir, 1440p e 2160p) como `ideal`, a 60 fps. Padrão 720p, salvo em `resolution`. Trocar reabre a placa. Se a abertura falhar, tenta de novo só com o `deviceId` | Em 1080p a placa testada mostra só 30 FPS, então o padrão é 720p. Placas melhores podem usar 1080p60. Testado com a MS2109 pelo seletor: 1080p a 30 FPS |
-| Áudio | Processamentos desligados, `channelCount: 2` e `sampleRate: 48000` | Conforme pedido |
-| AudioContext | `latencyHint: "interactive"`, `sampleRate: 48000` e `autoplayPolicy: "no-user-gesture-required"` | Evita reamostragem e garante que o som toque sem clique ao abrir |
-| Volume e mute | `MediaStreamSource → GainNode → destination` | Necessário para o volume da fase 2. Sem efeito perceptível na latência |
+| Áudio | **Desde a fase 6:** WASAPI em Rust, com a captura convertida pelo Windows para o formato da saída. Antes: `getUserMedia` com processamentos desligados | Ver "Fase 6" |
+| Volume e mute | **Desde a fase 6:** ganho aplicado no motor nativo, em rampa por pacote. Antes: `MediaStreamSource → GainNode → destination` | O Discord captura a saída do processo, então volume e mute continuam valendo para o stream |
 | Salvar dispositivos | Guarda `deviceId` **e** `label`. Restaura pelo id e, se falhar, pelo label | O `deviceId` do Chromium pode mudar. O label é mais estável |
 | Janela | Moldura nativa, sem menu, área de conteúdo inicial de 1280x720, mínima de 640x360, título travado via `page-title-updated` | Comportamento de um jogo em janela comum |
 | Atalho M | Mostra o overlay por 2 s ao alternar o mute | Confirma visualmente o estado, já que mute silencia também o stream |
@@ -83,7 +91,7 @@ captureMirror/
 | Dispositivo em uso | Só mostra o erro após 3 tentativas falhas. Depois, espera "Tentar novamente" ou um `devicechange` | Logo após reconectar, a placa pode recusar a abertura por alguns instantes |
 | Overlay em "Sem sinal" e em erro | Continua disponível | Permite escolher outro dispositivo se a placa salva não voltar |
 | Seletores | Componente próprio (`select.js`), como no protótipo, e não `<select>` nativo | O Chromium não avisa quando a lista nativa abre ou fecha. Com o próprio, o overlay fica visível enquanto a lista está aberta |
-| Ícone | `build/icon.png`, cópia de `design/icone/capture-mirror.png`. O electron-builder gera o `.ico` | Mantém uma única fonte para o ícone |
+| Ícone | `build/icon.png`, cópia de `design/icone/capture-mirror.png`. O `tauri icon` gera os ícones de `src-tauri/icons` | Mantém uma única fonte para o ícone |
 
 ### Janela desfocada ou coberta
 
@@ -114,7 +122,7 @@ O app usa o DirectShow em vez do Media Foundation, porque foi o driver com melho
 | Buffer | Pacotes já codificados na RAM, 62 s, um quadro-chave por segundo. O clipe começa no quadro-chave mais próximo de "agora − N s" | Clipar é instantâneo e nada vai para o disco sem pedido. O clipe pode ter até 1 s a mais que o pedido |
 | Vídeo | H.264 High, 8 Mbps em 720p60, `latencyMode: realtime`. Tenta `prefer-hardware` e cai para software (o caso deste PC, por causa do sandbox da GPU, que fica ligado). Se não houver H.264, usa VP9 | MP4 com H.264 toca em qualquer lugar, inclusive no Discord |
 | Áudio | AAC 160 kbps, 48 kHz, estéreo (Opus se não houver AAC) | Mesmo motivo |
-| Som do PC | Loopback do dispositivo padrão via `getDisplayMedia` + `setDisplayMediaRequestHandler` (`audio: 'loopback'`). A tela capturada junto é parada na hora | É a única forma de pegar o som do sistema no Chromium. O som da placa entra porque o app o toca, sem duplicar. Volume e mute do app valem para o clipe. Não precisou de gesto do usuário |
+| Som do PC | **Até a fase 5:** loopback via `getDisplayMedia` + `setDisplayMediaRequestHandler`. **Desde a fase 6:** loopback WASAPI no Rust (ver "Fase 6") | É a única forma de pegar o som do sistema no Chromium. O som da placa entra porque o app o toca, sem duplicar. Volume e mute do app valem para o clipe. Não precisou de gesto do usuário |
 | Microfone | Opcional, misturado num `AudioContext` que não toca nada, com o processamento de voz ligado. Só fica aberto com a imagem no ar | Não pode sair nos alto-falantes nem no stream |
 | Sincronia | Cada faixa é levada ao relógio de `performance.now()` pela chegada do primeiro quadro | O Chromium não garante a mesma origem nos timestamps de vídeo e áudio |
 | Disparo | Atalhos globais Ctrl+Shift+F9 (30 s) e Ctrl+Shift+F10 (1 min), mais botões no overlay. Atalho ocupado vira aviso no overlay | Funciona com o Discord ou o jogo em foco |
@@ -182,6 +190,51 @@ Só dá para confirmar estes pontos com a placa e o Discord reais, e esse teste 
 - **Sem assinatura de código,** o Windows SmartScreen mostra um aviso na primeira execução.
 - **Resolução do stream:** 1080p60 no Go Live depende do plano do Discord. O app não controla isso.
 - **"Ouvir este dispositivo"** do Windows deve ficar desligado para a placa, senão o som sai duplicado.
+
+## Fase 6 — Tauri e áudio nativo
+
+**Por quê:** o som da placa chegava atrasado em relação aos comandos do controle. A medida vai da captura da placa até a mixagem do Windows: correlação entre o som da placa e o loopback da saída, alinhados pelos carimbos QPC do WASAPI (ferramenta em `tools/medir-latencia`).
+
+| Caminho | Atraso |
+|---|---|
+| Electron (Web Audio) | 117 a 140 ms |
+| WASAPI nativo, com os efeitos do driver | 90 a 110 ms |
+| **WASAPI nativo, saída em modo raw** | **65 a 69 ms** |
+| App Tauri, baixa latência ligada / desligada | 66 ms / 111 ms |
+
+- **A maior parte do atraso não vinha do Chromium,** mas da saída. No notebook de teste, os alto-falantes passam pelo Dolby APO e pelos efeitos da Realtek, e só a saída leva 83 ms (do pulso escrito no WASAPI até ele aparecer no loopback). Com `AUDCLNT_STREAMOPTIONS_RAW`, cai para 47 ms. O Chromium não tem como abrir um stream raw.
+- **Sem efeito no Chromium:** `--audio-buffer-size`, `WebAudioBypassOutputBuffering`, `latencyHint: 0`. Tocar por `<audio srcObject>` é pior (60 ms a mais), e uma ponte própria (MediaStreamTrackProcessor → AudioWorklet) não melhorou com a placa real.
+- **Períodos curtos não ajudam neste PC:** a saída Realtek e o motor de captura da placa recusam menos de 10 ms (IAudioClient3).
+
+| Tema | Decisão | Motivo |
+|---|---|---|
+| Stack | Tauri 2 + WebView2, com a UI em JS puro como antes | O modo raw só é acessível por código nativo. O WebView2 também é Chromium, então `getUserMedia`, WebCodecs e WebRTC seguem iguais, e o app fica bem menor que os 308 MB do Electron |
+| Motor de áudio | Uma thread com MMCSS "Pro Audio" atende os eventos da placa e da saída. A captura usa `AUTOCONVERTPCM` para o formato da saída. A saída usa `IAudioClient3`, com o menor período e `SetClientProperties(RAW, GameMedia)` | Mesmo desenho do protótipo medido |
+| Fila | Alvo = um pacote da placa + um período da saída. Acima de alvo + um pacote, o mais antigo é descartado. A saída nunca é completada com silêncio | Silêncio escrito viraria atraso fixo. O descarte também evita o atraso acumulado por relógios diferentes (risco 3) |
+| Baixa latência | Botão no overlay, ligado por padrão e salvo em `lowLatency`. Se o driver recusar o raw, o app abre o stream normal e o botão avisa | O som sem os efeitos do fabricante pode soar diferente. Quem preferir os efeitos desliga |
+| Dispositivos | A lista de som da placa vem do WASAPI. O microfone do clipe continua na lista do Chromium. Os nomes casam com e sem o id USB no fim ("Placa" e "Placa (534d:2109)"), então a escolha salva no Electron continua valendo | O Chromium acrescenta o id USB ao nome do Windows |
+| Troca de saída | `IMMNotificationClient`: uma nova saída padrão refaz a sessão. Dispositivo novo ou removido avisa o renderer, que roda o `sync()` | Fone conectado ou outra saída escolhida no Windows: o som acompanha |
+| Som do PC nos clipes | Loopback WASAPI no Rust, em blocos de 10 ms por `Channel` binário, até um `AudioWorklet` no contexto dos clipes, com no máximo 100 ms na fila | No WebView2, o `getDisplayMedia` abriria o seletor de tela do Edge |
+| Modo navegador | Com uma guia conectada, o app abre a placa também pelo `getUserMedia`, só para o WebRTC, e cala a saída nativa | O WebRTC precisa de uma faixa do Chromium |
+| Permissões | `on_permission_request` concede câmera e microfone só para a origem do app. Na primeira abertura, `capture.js` faz um `getUserMedia` rápido, porque o WebView2 só revela ids e nomes depois de uma permissão | No Electron, o handler de checagem liberava os nomes sem pedido |
+| Flags | As mesmas do Electron, em `additionalBrowserArgs`, mais `--autoplay-policy=no-user-gesture-required` e as do próprio Tauri (`msWebOOUI`, `msPdfOOUI`, `msSmartScreenProtection`). A coleção usa as mesmas flags | O WebView2 exige as mesmas flags em todas as janelas do app |
+| Clipes no disco | Mesma pasta, mesmos nomes e `.thumbs`. O MP4 e a miniatura vão juntos num corpo binário do IPC. O protocolo `clip` (no WebView2, `http://clip.localhost`) responde a Range e limita pedidos abertos a 4 MB | Sem Range o player não avança |
+| Configuração | `%APPDATA%\com.capturemirror.app\settings.json`. Na primeira abertura, copia a configuração do Electron, menos os limites da janela | Os limites agora são em pixels físicos, sem o ajuste à grade de pixels |
+
+**Validado na placa:**
+- Imagem: 720p a 57,3 FPS (o Electron dava 57 a 58) e 57,7 FPS com a janela coberta.
+- Codificadores: H.264 por hardware disponível no WebView2 (no Electron, o sandbox da GPU bloqueava), além de AAC e Opus.
+- Discord: encontrou a janela no Go Live.
+- Clipes: clipe de 30 s em H.264 720p60, com AAC estéreo com som e miniatura. Atalho global com outra janela em foco, coleção com seek e Lixeira.
+- Modo navegador: imagem e som na guia, e o som volta ao app quando a guia fecha.
+
+**Falta testar:**
+- O som numa transmissão real do Discord. Agora ele sai do próprio processo do app, e em modo raw.
+- O aviso de clipe salvo e o clique nele.
+- Arrastar um clipe para o Discord.
+- A desconexão e a reconexão da placa.
+- Uma sessão de 1 hora, por causa da deriva de relógio.
+- O Meet numa call real.
 
 ## Fases
 

@@ -2,9 +2,9 @@
 <html lang="pt-BR">
   <head>
     <meta charset="utf-8" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'" />
     <title>Capture Mirror</title>
     <link rel="stylesheet" href="style.css" />
+    <script type="module" src="api.js"></script>
     <script type="module" src="app.js"></script>
   </head>
   <body>
@@ -69,6 +69,11 @@
           <input id="volume" class="cm-range" type="range" min="0" max="100" step="1" aria-label="Volume" />
         </div>
         <div id="volume-pct" class="cm-pct"></div>
+        <button id="latency" class="cm-mute cm-toggle" type="button" aria-pressed="true">
+          <svg class="cm-i" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M13 2.5L5 13.5h6l-1 8 8-11h-6l1-8z"></path>
+          </svg>
+        </button>
         <div class="cm-sep"></div>
         <div id="overlay-mic"></div>
         <span id="rec" class="cm-rec" hidden></span>

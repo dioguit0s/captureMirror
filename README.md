@@ -2,16 +2,16 @@
 
 Espelha a imagem e o som de uma placa de captura USB numa janela. Você compartilha essa janela no Discord (Go Live) como se fosse um jogo aberto, e o áudio vai junto. Também dá para compartilhar com som no Google Meet, por uma guia do navegador.
 
-Funciona no Windows 10 ou mais recente, com placas de captura USB comuns (UVC).
+Funciona no Windows 10 ou mais recente, com placas de captura USB comuns (UVC). Usa o WebView2 da Microsoft, que já vem no Windows 10 e 11 atualizados.
 
 ## Qual arquivo usar
 
-Os arquivos ficam na pasta `dist` depois do build (veja [Desenvolvimento](#desenvolvimento)).
+Os arquivos são gerados pelo build (veja [Desenvolvimento](#desenvolvimento)).
 
 | Arquivo | Quando usar |
 |---|---|
-| `Capture-Mirror-Setup-0.2.0.exe` | **Recomendado.** Instala só para o seu usuário e cria um atalho. Também atualiza uma versão já instalada, mantendo as configurações |
-| `Capture-Mirror-Portatil-0.2.0.exe` | Para rodar sem instalar. Demora um pouco mais para abrir |
+| `Capture Mirror_0.3.0_x64-setup.exe` (em `src-tauri/target/release/bundle/nsis`) | **Recomendado.** Instala só para o seu usuário e cria um atalho. Se o WebView2 faltar, o instalador baixa |
+| `Capture Mirror.exe` (em `src-tauri/target/release`) | Versão portátil: roda sem instalar, de qualquer pasta. Tem o mesmo nome do executável das versões anteriores, então o Discord continua reconhecendo o app |
 
 Os arquivos não têm assinatura digital, então o Windows pode mostrar um aviso do SmartScreen na primeira vez. Para continuar, clique em **Mais informações** e depois em **Executar assim mesmo**.
 
@@ -25,6 +25,14 @@ Os arquivos não têm assinatura digital, então o Windows pode mostrar um aviso
 Nas próximas vezes, o app abre direto na imagem, com os mesmos dispositivos, volume, tamanho e posição.
 
 Mova o mouse para ver os controles de dispositivo, resolução, mute e volume. Eles somem depois de 2 segundos com o mouse parado, junto com o cursor.
+
+### Baixa latência
+
+O botão com um raio, ao lado do volume, deixa o som da placa com o menor atraso possível. Ele vem ligado.
+
+O som da placa toca direto pelo áudio do Windows, sem passar pelo navegador interno do app. Com o botão ligado, ele também pula os efeitos de som do Windows e do fabricante, como o Dolby. No notebook de teste, o atraso entre a placa e o som sair caiu de ~125 ms (versão anterior do app) para ~65 ms.
+
+Sem esses efeitos, o som pode ficar um pouco diferente nos alto-falantes do notebook. Se preferir o som com efeitos, desligue o botão. O atraso volta a ~110 ms.
 
 ### Resolução
 
@@ -118,15 +126,15 @@ Enquanto a guia está conectada, o botão fica azul, e **o som passa a sair pela
 
 ## Onde ficam as configurações
 
-Em `%APPDATA%\Capture Mirror\settings.json`. Para voltar à tela de configuração inicial, feche o app e apague esse arquivo.
+Em `%APPDATA%\com.capturemirror.app\settings.json`. Na primeira abertura, a versão nova aproveita os dispositivos, o volume e a resolução da versão anterior (`%APPDATA%\Capture Mirror\settings.json`). Para voltar à tela de configuração inicial, feche o app e apague o arquivo novo.
 
 ## Estado dos testes
 
-O app foi testado com um dispositivo simulado do Chromium, uma webcam e uma placa de captura (ID USB 534D:2109), incluindo a escuta do som e a desconexão do USB. **Ainda não foi testado transmitindo no Go Live.** O modo navegador foi testado só com o dispositivo simulado, sem a placa e sem uma call real do Meet. Os clipes foram testados com a placa e com som do PC, mas ainda não numa call real do Discord. Os resultados e os pontos em aberto estão em [SPEC.md](SPEC.md).
+A versão 0.3.0 (Tauri) foi testada com a placa de captura (ID USB 534D:2109): imagem a 57 FPS em 720p (também com a janela coberta), som pela saída nativa com e sem baixa latência, clipes por botão e por atalho global, coleção com seek e Lixeira, e modo navegador com imagem e som na guia. O Discord encontrou a janela no Go Live. **Ainda não foram testados:** o som numa transmissão real do Discord, arrastar um clipe para o Discord, o aviso de clipe salvo, a desconexão do USB nesta versão e o Meet numa call real. Os resultados e os pontos em aberto estão em [SPEC.md](SPEC.md).
 
 ## Desenvolvimento
 
-Requer Node.js. A única dependência de execução é o [mediabunny](https://mediabunny.dev) (MPL-2.0), que monta o MP4 dos clipes. O renderer importa o bundle ESM direto de `node_modules`, sem etapa de build.
+Requer Node.js e Rust (toolchain `stable-x86_64-pc-windows-msvc`, com as Ferramentas de Build do Visual Studio 2022). O app é [Tauri 2](https://tauri.app): a interface continua em HTML e JavaScript puro em `src/`, sem etapa de build, e o lado nativo fica em `src-tauri/` (Rust). A única dependência JavaScript de execução é o [mediabunny](https://mediabunny.dev) (MPL-2.0), que monta o MP4 dos clipes. O `npm run vendor` copia o bundle dele para `src/renderer/vendor`.
 
 ```bash
 npm install
@@ -135,13 +143,17 @@ npm install
 Para rodar o app:
 
 ```bash
-npm start
+npm run dev
 ```
 
-Para gerar os executáveis em `dist`:
+Para gerar o instalador e o executável:
 
 ```bash
-npm run dist
+npm run build
 ```
 
-Com o app rodando por `npm start`, as capacidades do dispositivo aparecem no terminal, e F12 abre as ferramentas de desenvolvedor.
+Em modo dev, o clique direito abre as ferramentas de desenvolvedor, e as capacidades do dispositivo aparecem no console delas.
+
+Para medir o atraso do som, há duas ferramentas em `tools/medir-latencia` (compile com `build.bat`):
+- Com o app tocando, `passthrough.exe --sem-som` mede o atraso entre a placa e o som que sai no Windows. Precisa de som saindo do console.
+- `pulse.exe [--raw]` mede só o lado da saída.

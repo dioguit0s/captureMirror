@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Janelas do app: só eventos e os comandos do próprio app.",
+  "windows": ["main", "collection"],
+  "permissions": ["core:event:default"]
+}

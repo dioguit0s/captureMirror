@@ -4,7 +4,6 @@ import {
   findResolution,
   listDevices,
   logTrackInfo,
-  openAudio,
   openVideo,
   supportedResolutions,
 } from './capture.js';
@@ -50,12 +49,13 @@ const recDot = $('#rec');
 const clipButtons = { 30: $('#clip-30'), 60: $('#clip-60') };
 const collectionButton = $('#collection');
 const shareButton = $('#share');
+const latencyButton = $('#latency');
 
 const api = window.captureMirror;
-const output = createAudioOutput();
+const output = createAudioOutput(api);
 const overlay = createOverlay($('#overlay'));
 const infoPanel = createInfoPanel($('#info'), video);
-const clipAudio = createClipAudio();
+const clipAudio = createClipAudio(api);
 const share = createBrowserShare({
   api,
   audioTrack: () => output.shareTrack(),
@@ -113,8 +113,13 @@ const live = { video: null, audio: null };
 const errors = { video: null, audio: null };
 const failedAttempts = { video: 0, audio: 0 };
 
-let devices = { video: [], audio: [] };
+// audio: entradas do Windows, para o som da placa (motor nativo).
+// mic: entradas do Chromium, para o microfone dos clipes (getUserMedia).
+let devices = { video: [], audio: [], mic: [] };
 let muted = false;
+// Modo raw: o som da placa pula os efeitos do Windows (Dolby e afins).
+let lowLatency = true;
+let audioInfo = null;
 // Microfone que entra só nos clipes. null = nenhum.
 let desiredMic = null;
 let desiredResolution = DEFAULT_RESOLUTION;
@@ -169,9 +174,9 @@ function renderSelects() {
     disconnectedLabel(devices.audio, desired.audio),
   );
   overlayMic.setOptions(
-    [{ value: NO_AUDIO, label: 'Sem microfone no clipe' }, ...devices.audio.map(toOption)],
+    [{ value: NO_AUDIO, label: 'Sem microfone no clipe' }, ...devices.mic.map(toOption)],
     desiredMic?.id ?? NO_AUDIO,
-    disconnectedLabel(devices.audio, desiredMic),
+    disconnectedLabel(devices.mic, desiredMic),
   );
 }
 
@@ -264,6 +269,15 @@ function render() {
   shareButton.setAttribute('aria-pressed', String(share.connected));
   shareButton.setAttribute('aria-label', shareLabel);
   shareButton.title = shareLabel;
+
+  const latencyLabel = !lowLatency
+    ? 'Baixa latência desligada: o som passa pelos efeitos do Windows. Clique para ligar.'
+    : audioInfo && !audioInfo.raw
+      ? 'Baixa latência ligada, mas a saída de som não aceitou pular os efeitos do Windows.'
+      : 'Baixa latência: o som da placa pula os efeitos do Windows (Dolby e afins). Clique para desligar.';
+  latencyButton.setAttribute('aria-pressed', String(lowLatency));
+  latencyButton.setAttribute('aria-label', latencyLabel);
+  latencyButton.title = latencyLabel;
   renderClipControls();
 }
 
@@ -280,7 +294,7 @@ function close(kind) {
     share.setVideoTrack(null);
     replay.stop().then(render);
   } else {
-    output.setStream(null);
+    output.close();
   }
 }
 
@@ -303,7 +317,7 @@ async function startReplay(stream) {
 
 // O microfone só fica aberto enquanto a imagem está no ar.
 function syncMic() {
-  const device = live.video && desiredMic ? findDevice(devices.audio, desiredMic) : null;
+  const device = live.video && desiredMic ? findDevice(devices.mic, desiredMic) : null;
   clipAudio
     .setMic(device?.deviceId ?? null)
     .then(() => {
@@ -320,7 +334,7 @@ function syncMic() {
 }
 
 function chooseClipMic(value) {
-  const device = devices.audio.find(({ deviceId }) => deviceId === value);
+  const device = devices.mic.find(({ deviceId }) => deviceId === value);
   desiredMic = device ? describe(device) : null;
   api.saveSettings({ clipMic: desiredMic });
   clipErrors.mic = null;
@@ -413,6 +427,18 @@ function scheduleRetry() {
 
 // Fila de uma posição: abrir um dispositivo é lento, e duas aberturas ao mesmo
 // tempo poderiam deixar um stream perdido sem ninguém para fechá-lo.
+// Vídeo e microfone vêm do Chromium; o som da placa, do Windows (motor nativo).
+async function loadDevices() {
+  const { video, audio: mic } = await listDevices();
+  let audio = [];
+  try {
+    audio = (await api.audio.list()).map(({ id, label }) => ({ deviceId: id, label, kind: 'audioinput' }));
+  } catch (error) {
+    console.error(`dispositivos de áudio: ${error.name}: ${error.message}`);
+  }
+  return { video, audio, mic };
+}
+
 async function sync() {
   if (syncing) {
     syncAgain = true;
@@ -422,7 +448,7 @@ async function sync() {
   try {
     do {
       syncAgain = false;
-      devices = await listDevices();
+      devices = await loadDevices();
       await open(
         'video',
         (deviceId) => openVideo(deviceId, desiredResolution),
@@ -438,7 +464,11 @@ async function sync() {
         desiredResolution,
       );
       switchingResolution = false;
-      await open('audio', openAudio, (stream) => output.setStream(stream));
+      await open(
+        'audio',
+        (deviceId) => output.open(deviceId, devices.audio.find((item) => item.deviceId === deviceId)?.label ?? ''),
+        () => {},
+      );
       syncMic();
       renderSelects();
       render();
@@ -493,6 +523,17 @@ retryButton.addEventListener('click', () => {
 });
 
 muteButton.addEventListener('click', toggleMute);
+latencyButton.addEventListener('click', () => {
+  lowLatency = !lowLatency;
+  output.setLowLatency(lowLatency);
+  api.saveSettings({ lowLatency });
+  render();
+  overlay.show();
+});
+output.onInfo((info) => {
+  audioInfo = info;
+  render();
+});
 clipButtons[30].addEventListener('click', () => saveClip(30));
 clipButtons[60].addEventListener('click', () => saveClip(60));
 collectionButton.addEventListener('click', () => api.openCollection());
@@ -527,6 +568,8 @@ document.addEventListener('keydown', (event) => {
   }
 });
 
+// O Windows avisa de dispositivos de som que o Chromium pode não listar.
+api.audio.onDevicesChanged(() => sync());
 navigator.mediaDevices.addEventListener('devicechange', () => {
   clearErrors();
   sync();
@@ -538,6 +581,8 @@ desired.audio = saved.audio;
 desiredMic = saved.clipMic;
 desiredResolution = findResolution(saved.resolution).id;
 shortcuts = await api.clipShortcuts();
+lowLatency = saved.lowLatency !== false;
+output.setLowLatency(lowLatency);
 volumeSlider.value = Math.round(saved.volume * 100);
 output.setVolume(saved.volume);
 renderVolume();
